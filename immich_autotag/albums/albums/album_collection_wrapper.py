@@ -690,7 +690,7 @@ class AlbumCollectionWrapper:
 
         from immich_client.models.album_user_role import AlbumUserRole
 
-        from immich_autotag.api.logging_proxy.albums.album_permissions import (
+        from immich_autotag.api.logging_proxy.albums.add_users_to_album import (
             logging_add_user_to_album,
         )
 

@@ -1,8 +1,10 @@
 from typeguard import typechecked
 
 from immich_autotag.albums.permissions.album_policy_resolver import ResolvedAlbumPolicy
-from immich_autotag.api.logging_proxy.albums.album_permissions import (
+from immich_autotag.api.logging_proxy.albums.add_users_to_album import (
     logging_add_members_to_album,
+)
+from immich_autotag.api.logging_proxy.albums.remove_user_from_album import (
     logging_remove_members_from_album,
 )
 from immich_autotag.context.immich_context import ImmichContext
