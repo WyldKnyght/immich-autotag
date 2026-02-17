@@ -3,6 +3,7 @@ import atexit
 from immich_client.api.assets import get_asset_info as _get_asset_info
 from immich_client.models.asset_response_dto import AssetResponseDto
 
+from immich_autotag.api.immich_proxy.debug import read_operation_debug
 from immich_autotag.logging.levels import LogLevel
 from immich_autotag.logging.utils import log
 from immich_autotag.types.client_types import ImmichClient
@@ -30,9 +31,8 @@ def proxy_get_asset_info(
     """
     Centralized wrapper for get_asset_info.sync. Now delegates all cache logic to AssetCacheEntry.
     """
-    from immich_autotag.api.immich_proxy.debug import api_debug_breakpoint
 
-    api_debug_breakpoint()
+    read_operation_debug()
     global _asset_api_call_count
     _asset_api_call_count += 1
     _asset_api_ids.add(str(asset_id))

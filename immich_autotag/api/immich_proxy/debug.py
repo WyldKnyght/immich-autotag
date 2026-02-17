@@ -7,6 +7,15 @@ def generic_debug_operation():
     pass
 
 
+def read_operation_debug():
+    """
+    Función explícita para operaciones de lectura/consulta.
+    Recibe datos y retorna una respuesta de lectura.
+    """
+    # Aquí iría la lógica de lectura
+    pass
+
+
 def write_operation_debug():
     """
     Función explícita para operaciones de escritura/modificación.
