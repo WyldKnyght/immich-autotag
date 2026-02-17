@@ -31,8 +31,22 @@ def cleanup_album_names(
     album_collection: AlbumCollectionWrapper,
 ) -> ModificationEntriesList:
     """
-    Identifies albums with corrupted names and attempts to restore their original names.
-    Merges duplicate albums as needed.
+    Rescue function for catastrophic album renaming/duplication bugs.
+
+    Context:
+    During development, a bug in the duplicate album handling logic caused the renaming suffix
+    (e.g., '__RENAMED_BY_AUTOTAG_DUPLICATE_USER_ALBUM__') to be appended multiple times to album names,
+    or even to all albums, not just true duplicates. This led to situations where many albums had
+    corrupted names with repeated or unnecessary suffixes, and some albums were no longer properly deduplicated.
+
+    Purpose:
+    This function scans all albums, detects those with corrupted names (multiple or spurious renaming suffixes),
+    and attempts to restore their original names by stripping all suffixes. It also merges duplicates as needed.
+    The goal is to recover from a catastrophic state caused by the faulty renaming/duplication strategy and
+    leave the album collection in a consistent, deduplicated state.
+
+    Usage:
+    Should be run as a one-time maintenance operation when such corruption is detected. Controlled by config flag.
     """
 
     # Get client and report
