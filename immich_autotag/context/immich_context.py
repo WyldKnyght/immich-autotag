@@ -50,6 +50,7 @@ class ImmichContext:
     def get_tag_collection(self) -> "TagCollectionWrapper":
         if self._tag_collection is None:
             from immich_autotag.tags.tag_collection_wrapper import TagCollectionWrapper
+
             self._tag_collection = TagCollectionWrapper.get_instance()
         return self._tag_collection
 

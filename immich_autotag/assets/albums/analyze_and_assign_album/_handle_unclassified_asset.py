@@ -125,7 +125,6 @@ def handle_unclassified_asset(
         create_album_if_missing_classification,
     )
 
-
     created_album: ModificationEntry | None = create_album_if_missing_classification(
         asset_wrapper, tag_mod_report
     )
