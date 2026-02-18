@@ -115,6 +115,17 @@ class TagWrapper:
             and self._source == TagSource.ASSET_PAYLOAD
         ):
             return other
+        # Compare loaded_at timestamps
+        self_time = self._loaded_at
+        other_time = other._loaded_at
+        time_info = ""
+        if self_time is not None and other_time is not None:
+            if self_time > other_time:
+                time_info = f"\n[INFO] 'Self' is more recent by {self_time - other_time:.3f} seconds."
+            elif other_time > self_time:
+                time_info = f"\n[INFO] 'Other' is more recent by {other_time - self_time:.3f} seconds."
+            else:
+                time_info = "\n[INFO] Both tags have identical timestamps."
         raise NotImplementedError(
-            f"get_best_tag decision logic not implemented yet.\nSelf: {repr(self)}\nOther: {repr(other)}"
+            f"get_best_tag decision logic not implemented yet.\nSelf: {repr(self)}\nOther: {repr(other)}{time_info}"
         )
