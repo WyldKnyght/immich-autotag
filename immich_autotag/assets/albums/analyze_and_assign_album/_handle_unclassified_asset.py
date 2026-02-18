@@ -132,7 +132,9 @@ def handle_unclassified_asset(
     if created_album:
         albums_collection = asset_wrapper.get_context().get_albums_collection()
         # Update the map to reflect the new asset-album relationship
-        albums_collection.update_asset_to_albums_map(asset_wrapper)
+        albums_collection.update_asset_to_albums_map_for_asset(
+            asset_wrapper, created_album
+        )
         modifications = ModificationEntriesList(entries=[created_album])
         return AlbumAssignmentResultInfo(
             AlbumAssignmentResult.CREATED_TEMPORARY, modifications
