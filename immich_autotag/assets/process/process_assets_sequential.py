@@ -8,7 +8,7 @@ from immich_autotag.config.manager import ConfigManager
 from immich_autotag.context.immich_context import ImmichContext
 from immich_autotag.errors.recoverable_error import categorize_error
 from immich_autotag.logging.levels import LogLevel
-from immich_autotag.logging.utils import log, log_debug
+from immich_autotag.logging.utils import log
 from immich_autotag.report.modification_report import ModificationReport
 from immich_autotag.statistics.statistics_manager import StatisticsManager
 
@@ -53,7 +53,7 @@ def process_assets_sequential(
             context, max_assets=max_assets, skip_n=skip_n
         ):
             asset_id = asset_wrapper.get_id()
-            asset_url = asset_wrapper.get_immich_asset_url().geturl()
+            asset_url = asset_wrapper.get_immich_photo_url().geturl()
             log(
                 f"[PROGRESS] Processing asset {count+1}: {asset_id} | Link: {asset_url}",
                 level=LogLevel.ASSET_SUMMARY,
