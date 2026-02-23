@@ -163,11 +163,7 @@ class StatisticsManager:
     @typechecked
     def get_progress_description(self) -> str:
         count = self.get_or_create_run_stats().count
-        if self._perf_tracker is None:
-            raise RuntimeError(
-                "PerformanceTracker not initialized: totals missing. "
-                "Call set_total_assets or set_max_assets before processing."
-            )
+
         return self._get_or_create_perf_tracker().get_progress_description(count)
 
     @typechecked
