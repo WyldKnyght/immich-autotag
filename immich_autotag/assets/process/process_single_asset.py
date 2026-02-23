@@ -19,6 +19,7 @@ from immich_autotag.assets.duplicate_tag_logic import (
     DuplicateTagAnalysisReport,
     analyze_duplicate_classification_tags,
 )
+from immich_autotag.assets.process.asset_process_report import AssetProcessReport
 from immich_autotag.config.manager import ConfigManager
 from immich_autotag.conversions.tag_conversions import TagConversions
 from immich_autotag.logging.levels import LogLevel
@@ -74,7 +75,7 @@ def _analyze_duplicate_tags(
 @typechecked
 def process_single_asset(
     asset_wrapper: "AssetResponseWrapper",
-) -> None:
+) -> AssetProcessReport:
     """Process a single asset through all analysis and tagging phases.
 
     Applies tag conversions, corrects date if enabled, analyzes duplicates,
@@ -129,7 +130,7 @@ def process_single_asset(
     tag_mod_report.flush()
     StatisticsManager.get_instance().process_asset_tags(asset_wrapper.get_tag_names())
     log(
-        f"[DEBUG] [process_single_asset] END asset_id={asset_wrapper.get_uuid()}",
+        f"[DEBUG] [process_single_asset] END asset_url={asset_url}",
         level=LogLevel.FOCUS,
     )
-    return None
+    return report
