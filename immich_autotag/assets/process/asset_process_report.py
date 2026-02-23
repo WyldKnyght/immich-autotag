@@ -41,13 +41,13 @@ class AssetProcessReport(ProcessStepResult):
         _legacy_steps: Legacy step list for backward compatibility/debugging
     """
 
-    asset_wrapper: "AssetResponseWrapper"
+    _asset_wrapper: "AssetResponseWrapper"
     _process_step_results: List[ProcessStepResult] = attr.ib(
-        factory=lambda: [], repr=False
+        factory=lambda: [], repr=lambda x: f"size={len(x)}"
     )
     # Optionally, keep the old steps list for extensibility/debug
     _legacy_steps: List[AssetProcessStepResult] = attr.ib(
-        factory=lambda: [], repr=False
+        factory=lambda: [], repr=lambda x: f"size={len(x)}"
     )
 
     def add_result(self, result: Optional[ProcessStepResult]) -> None:
@@ -159,5 +159,5 @@ class AssetProcessReport(ProcessStepResult):
             lines.append("[SUMMARY] No modifications occurred in any step.")
         return "\n".join(lines)
 
-    def __str__(self):
+    def __str__deprecated_use_attrs(self):
         return self.summary()
