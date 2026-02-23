@@ -1,3 +1,4 @@
+from immich_autotag.types.timestamp import Timestamp
 import time
 from dataclasses import dataclass
 from typing import Optional
@@ -26,7 +27,7 @@ class AvgAndTotals:
 @attr.s(auto_attribs=True, kw_only=True, slots=True)
 class PerformanceTracker:
 
-    _start_time: float = attr.ib(
+    _start_time: Timestamp = attr.ib(
         init=False,
         factory=lambda: time.time(),
         validator=attr.validators.instance_of(float),
@@ -59,7 +60,7 @@ class PerformanceTracker:
         default=None,
         validator=attr.validators.optional(attr.validators.instance_of(int)),
     )
-    _last_log_time: Optional[float] = attr.ib(
+    _last_log_time: Optional[Timestamp] = attr.ib(
         init=False,
         default=None,
         validator=attr.validators.optional(attr.validators.instance_of(float)),
