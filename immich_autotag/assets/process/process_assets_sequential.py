@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typeguard import typechecked
 
+from immich_autotag.assets.process.asset_process_report import AssetProcessReport
 from immich_autotag.assets.process.process_single_asset import process_single_asset
 from immich_autotag.config.dev_mode import is_development_mode
 from immich_autotag.config.manager import ConfigManager
@@ -60,7 +61,11 @@ def process_assets_sequential(
             )
 
             try:
-                process_single_asset(asset_wrapper)
+                result: AssetProcessReport = process_single_asset(asset_wrapper)
+                log(
+                    f"[DEBUG] process_single_asset result: {result}",
+                    level=LogLevel.DEBUG,
+                )
             except Exception as e:
                 # Categorize the error as recoverable or fatal
                 categorized = categorize_error(e)
