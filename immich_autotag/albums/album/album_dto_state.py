@@ -226,3 +226,5 @@ class AlbumDtoState:
 
     def get_immich_album_url(self):
         return album_url_from_dto(self._dto)
+    def from_album_info(album_info: AlbumResponseDto, load_source: AlbumLoadSource) -> "AlbumDtoState":
+        return AlbumDtoState.create(dto=album_info, load_source=load_source)

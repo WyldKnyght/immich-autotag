@@ -9,12 +9,13 @@ from immich_autotag.logging.levels import LogLevel
 from immich_autotag.logging.utils import log
 from immich_autotag.report.modification_entry import ModificationEntry
 from immich_autotag.report.modification_report import ModificationReport
-from immich_autotag.types.uuid_wrappers import AssetUUID
+from immich_autotag.types.uuid_wrappers import AlbumUUID, AssetUUID
 from immich_autotag.utils.decorators import conditional_typechecked
 
 @conditional_typechecked
 def _verify_asset_in_album_with_retry(*,
     asset_wrapper: "AssetResponseWrapper",
+    album_id: AlbumUUID,
     client: ImmichClient,
     max_retries: int = 3,
 ) -> None:
@@ -25,9 +26,17 @@ def _verify_asset_in_album_with_retry(*,
     """
     import time
 
+    from immich_autotag.api.immich_proxy.albums.get_album_info import proxy_get_album_info
+    from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrapper
+
+
+
     for attempt in range(max_retries):
-        if self._cache_entry.has_asset_wrapper(asset_wrapper):
-            return  # Success - asset is in album
+        album_info = proxy_get_album_info(album_id=album_id, client=client, use_cache=False)
+        if album_info is not None:# Validate album ID format
+            album_wrapper = AlbumDtoState.from_album_info(album_info)
+            if asset_wrapper.get_id() in album_wrapper.get_asset_uuids():
+                return  # Success - asset is in album
 
         if attempt < max_retries - 1:
             # Exponential backoff: 0.1s, 0.2s, 0.4s, etc.
@@ -37,7 +46,7 @@ def _verify_asset_in_album_with_retry(*,
             log(
                 (
                     f"After {max_retries} retries, asset {asset_wrapper.get_id()} "
-                    f"does NOT appear in album {self.get_album_uuid()}. "
+                    f"does NOT appear in album {album_id}. "
                     f"This may be an eventual consistency or "
                     f"API issue."
                 ),
