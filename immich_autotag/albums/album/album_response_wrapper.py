@@ -310,7 +310,9 @@ class AlbumResponseWrapper:
         """
         # 1. Validation
         self._ensure_removal_allowed()
-        report_mod_entry = self._cache_entry.remove_asset(asset_wrapper=asset_wrapper,album=self)
+        report_mod_entry = self._cache_entry.remove_asset(
+            asset_wrapper=asset_wrapper, album=self
+        )
 
         return report_mod_entry
 
