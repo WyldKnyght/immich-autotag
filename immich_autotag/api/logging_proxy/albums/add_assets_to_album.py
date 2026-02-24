@@ -130,7 +130,7 @@ def _handle_add_asset_error(
         raise AssetAlreadyInAlbumError(
             f"Asset {asset_wrapper.get_id()} already in album {album_state.get_album_uuid()} (API duplicate error)\n"
             f"Asset link: {asset_wrapper.get_link().geturl()}\n"
-            f"Album link: {album_state.get_immich_album_url().geturl()}"
+            f"Album link: {album_state.get_immich_album_url()}"
         )
     else:
         raise RuntimeError(
