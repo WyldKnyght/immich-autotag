@@ -1,7 +1,7 @@
 from immich_client.models.bulk_id_response_dto import BulkIdResponseDto
 from typeguard import typechecked
 
-from immich_autotag.albums.album.album_dto_state import AlbumDtoState
+from immich_autotag.albums.album.album_dto_state import AlbumDtoState, AlbumLoadSource
 from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrapper
 from immich_autotag.api.immich_proxy.types import ImmichClient
 from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
@@ -37,7 +37,9 @@ def _verify_asset_in_album_with_retry(
             album_id=album_id, client=client, use_cache=False
         )
         if album_info is not None:  # Validate album ID format
-            album_wrapper = AlbumDtoState.from_album_info(album_info)
+            album_wrapper = AlbumDtoState.from_album_info(
+                album_info, load_source=AlbumLoadSource.DETAIL
+            )
             if asset_wrapper.get_id() in album_wrapper.get_asset_uuids():
                 return  # Success - asset is in album
 
