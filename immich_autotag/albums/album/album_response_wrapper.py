@@ -11,10 +11,9 @@ from immich_client.models.album_response_dto import AlbumResponseDto
 from immich_client.models.bulk_id_response_dto import BulkIdResponseDto
 from typeguard import typechecked
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
     from immich_autotag.albums.album.album_cache_entry import AlbumCacheEntry
+
 from immich_autotag.albums.album.album_dto_state import AlbumLoadSource
 from immich_autotag.api.logging_proxy.albums.add_assets_to_album import (
     _find_asset_result_in_response,
@@ -24,8 +23,6 @@ from immich_autotag.types.uuid_wrappers import AlbumUUID, UserUUID
 
 if TYPE_CHECKING:
     from immich_autotag.types.uuid_wrappers import AssetUUID
-
-if TYPE_CHECKING:
     from immich_autotag.report.modification_report import ModificationReport
     from immich_autotag.report.modification_entry import ModificationEntry
     from immich_autotag.context.immich_context import ImmichContext
