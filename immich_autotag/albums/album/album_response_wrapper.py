@@ -262,9 +262,6 @@ class AlbumResponseWrapper:
                 f"Asset {asset_wrapper.get_id()} is already in album {self.get_album_uuid()}"
             )
 
-
-
-
     # --- 8. Public Methods - Modification Actions ---
     @conditional_typechecked
     def add_asset(

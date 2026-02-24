@@ -222,9 +222,12 @@ class AlbumDtoState:
 
     def get_album_uuid(self) -> AlbumUUID:
         return AlbumUUID.from_uuid_string(self._dto.id)
-    
 
     def get_immich_album_url(self):
         return album_url_from_dto(self._dto)
-    def from_album_info(album_info: AlbumResponseDto, load_source: AlbumLoadSource) -> "AlbumDtoState":
+
+    @staticmethod
+    def from_album_info(
+        album_info: AlbumResponseDto, load_source: AlbumLoadSource
+    ) -> "AlbumDtoState":
         return AlbumDtoState.create(dto=album_info, load_source=load_source)

@@ -10,10 +10,10 @@ from typeguard import typechecked
 
 from immich_autotag.albums.album.album_dto_state import AlbumDtoState
 from immich_autotag.api.immich_proxy.types import ImmichClient
-from immich_autotag.api.logging_proxy.albums.add_assets_to_album import logging_add_assets_to_album
+from immich_autotag.api.logging_proxy.albums.add_assets_to_album import (
+    logging_add_assets_to_album,
+)
 from immich_autotag.config.cache_config import DEFAULT_CACHE_MAX_AGE_SECONDS
-from immich_autotag.logging.levels import LogLevel
-from immich_autotag.logging.utils import log
 from immich_autotag.types.uuid_wrappers import AlbumUUID, AssetUUID, UserUUID
 from immich_autotag.utils.decorators import conditional_typechecked
 
@@ -287,4 +287,3 @@ class AlbumCacheEntry:
         from immich_autotag.utils.url_helpers import get_immich_album_url
 
         return get_immich_album_url(self.get_album_uuid())
-

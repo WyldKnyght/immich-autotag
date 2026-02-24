@@ -12,8 +12,10 @@ from immich_autotag.report.modification_report import ModificationReport
 from immich_autotag.types.uuid_wrappers import AlbumUUID, AssetUUID
 from immich_autotag.utils.decorators import conditional_typechecked
 
+
 @conditional_typechecked
-def _verify_asset_in_album_with_retry(*,
+def _verify_asset_in_album_with_retry(
+    *,
     asset_wrapper: "AssetResponseWrapper",
     album_id: AlbumUUID,
     client: ImmichClient,
@@ -26,14 +28,15 @@ def _verify_asset_in_album_with_retry(*,
     """
     import time
 
-    from immich_autotag.api.immich_proxy.albums.get_album_info import proxy_get_album_info
-    from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrapper
-
-
+    from immich_autotag.api.immich_proxy.albums.get_album_info import (
+        proxy_get_album_info,
+    )
 
     for attempt in range(max_retries):
-        album_info = proxy_get_album_info(album_id=album_id, client=client, use_cache=False)
-        if album_info is not None:# Validate album ID format
+        album_info = proxy_get_album_info(
+            album_id=album_id, client=client, use_cache=False
+        )
+        if album_info is not None:  # Validate album ID format
             album_wrapper = AlbumDtoState.from_album_info(album_info)
             if asset_wrapper.get_id() in album_wrapper.get_asset_uuids():
                 return  # Success - asset is in album
@@ -53,13 +56,14 @@ def _verify_asset_in_album_with_retry(*,
                 level=LogLevel.WARNING,
             )
 
+
 @typechecked
-def _report_addition_to_modification_report(*,
-    asset_wrapper: "AssetResponseWrapper",album_wrapper: AlbumResponseWrapper
+def _report_addition_to_modification_report(
+    *, asset_wrapper: "AssetResponseWrapper", album_wrapper: AlbumResponseWrapper
 ) -> "ModificationEntry":
     """Records the asset addition in the modification report."""
     from immich_autotag.report.modification_kind import ModificationKind
-    from immich_autotag.report.modification_report import ModificationReport
+
     tag_mod_report = ModificationReport.get_instance()
 
     return tag_mod_report.add_assignment_modification(
@@ -67,12 +71,14 @@ def _report_addition_to_modification_report(*,
         asset_wrapper=asset_wrapper,
         album=album_wrapper,
     )
+
+
 def _handle_add_asset_error(
     *,
     bulk_id_response_dto: BulkIdResponseDto,
     asset_wrapper: "AssetResponseWrapper",
     album_wrapper: AlbumResponseWrapper,
-    album_state: AlbumDtoState
+    album_state: AlbumDtoState,
 ) -> None:
     """Handles non-success results from addition API."""
     error_msg = bulk_id_response_dto.error
@@ -153,9 +159,14 @@ def _find_asset_result_in_response(
 
     return None
 
+
 @typechecked
 def logging_add_assets_to_album(
-    *, asset_wrapper: "AssetResponseWrapper", client: ImmichClient, album_wrapper: AlbumResponseWrapper, album_state: AlbumDtoState, 
+    *,
+    asset_wrapper: "AssetResponseWrapper",
+    client: ImmichClient,
+    album_wrapper: AlbumResponseWrapper,
+    album_state: AlbumDtoState,
 ) -> list[BulkIdResponseDto]:
     """Executes the API call to add an asset to the album."""
     from immich_autotag.api.immich_proxy.albums.add_assets_to_album import (
@@ -175,7 +186,8 @@ def logging_add_assets_to_album(
             _handle_add_asset_error(
                 bulk_id_response_dto=item,
                 asset_wrapper=asset_wrapper,
-                album_wrapper=album_wrapper,album_state=album_state
+                album_wrapper=album_wrapper,
+                album_state=album_state,
             )
     else:
         raise RuntimeError(
@@ -183,7 +195,9 @@ def logging_add_assets_to_album(
         )
 
     # 4. Reporting
-    entry = _report_addition_to_modification_report(asset_wrapper=asset_wrapper,album_wrapper=album_wrapper)
+    entry = _report_addition_to_modification_report(
+        asset_wrapper=asset_wrapper, album_wrapper=album_wrapper
+    )
 
     # 5. Consistency Verification
     self._verify_asset_in_album_with_retry(asset_wrapper, client, max_retries=3)
