@@ -35,9 +35,6 @@ class UserResponseWrapperList:
         ]
         return UserResponseWrapperList(combined)
 
-    def to_set(self) -> set[UserResponseWrapper]:
-        return set(self._users)
-
     def to_list(self) -> list[UserResponseWrapper]:
         return list(self._users)
 

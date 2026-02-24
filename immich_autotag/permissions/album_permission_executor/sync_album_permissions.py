@@ -79,8 +79,8 @@ def _calculate_member_diff(
 ) -> MemberDiff:
     target = target_members.deduplicate_by_id()
     current = current_members.deduplicate_by_id()
-    members_to_add = target.difference(current).to_set()
-    members_to_remove = current.difference(target).to_set()
+    members_to_add = target.difference(current).deduplicate_by_id()
+    members_to_remove = current.difference(target).deduplicate_by_id()
     return MemberDiff(
         members_to_add=members_to_add, members_to_remove=members_to_remove
     )
