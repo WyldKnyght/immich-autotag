@@ -244,9 +244,8 @@ class AlbumCollectionWrapper:
     def get_instance(cls) -> "AlbumCollectionWrapper":
         global _album_collection_singleton
         if _album_collection_singleton is None:
-            # Create and sync the singleton instance
+            # Create the singleton instance (lazy loading will occur on access)
             _album_collection_singleton = cls()
-            _album_collection_singleton.resync_from_api()
         return _album_collection_singleton
 
     @staticmethod
