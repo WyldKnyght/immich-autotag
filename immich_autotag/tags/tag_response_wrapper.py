@@ -138,6 +138,19 @@ class TagWrapper:
 
         self_time = self.get_loaded_at()
         other_time = other.get_loaded_at()
+        # If both tags are of the same type (ASSET_PAYLOAD), return the most recent one
+        if self._source == other._source == TagSource.ASSET_PAYLOAD:
+            if self_time is not None and other_time is not None:
+                return self if self_time > other_time else other
+            elif self_time is not None:
+                return self
+            elif other_time is not None:
+                return other
+            else:
+                raise NotImplementedError(
+                    "Fallback logic not implemented for get_best_tag."
+                )
+        # Fallback: raise until more logic is implemented
         time_info = ""
         if self_time is not None and other_time is not None:
             if self_time > other_time:
