@@ -32,16 +32,16 @@ class DuplicateAssetGroup:
         def __iter__(self) -> "DuplicateAssetGroup.DuplicateAssetGroupIterator":
             return self
 
-    assets: list[AssetUUID]
+    _assets: list[AssetUUID]
 
     def as_str_list(self) -> list[str]:
-        return [str(u) for u in self.assets]
+        return [str(u) for u in self._assets]
 
     def __iter__(self) -> "DuplicateAssetGroup.DuplicateAssetGroupIterator":
-        return DuplicateAssetGroup.DuplicateAssetGroupIterator(self.assets)
+        return DuplicateAssetGroup.DuplicateAssetGroupIterator(self._assets)
 
     def __len__(self) -> int:
-        return len(self.assets)
+        return len(self._assets)
 
 
 @attrs.define(auto_attribs=True, slots=True)
