@@ -62,18 +62,21 @@ class AssetDateSourcesList:
     @staticmethod
     @typechecked
     def from_wrappers(
-        asset_wrapper: "AssetResponseWrapper", wrappers: list["AssetResponseWrapper"]
+        asset_wrapper: "AssetResponseWrapper", wrappers: "AssetResponseWrapperList"
     ) -> "AssetDateSourcesList":
         """
-        Build an AssetDateSourcesList from a main AssetResponseWrapper and a list of AssetResponseWrapper objects (duplicates).
+        Build an AssetDateSourcesList from a main AssetResponseWrapper and an AssetResponseWrapperList (duplicates).
         Each wrapper gets its own AssetDateCandidates set.
         """
         from .get_asset_date_sources import get_asset_date_candidates
 
-        if not wrappers:
+        if not wrappers or len(wrappers) == 0:
             raise ValueError("wrappers list must not be empty")
-        candidate_sets = [get_asset_date_candidates(w) for w in wrappers]
-        return AssetDateSourcesList(asset_wrapper, candidate_sets)
+        sources_list = AssetDateSourcesList(asset_wrapper)
+        for w in wrappers:
+            candidate_set = get_asset_date_candidates(w)
+            sources_list.add(candidate_set)
+        return sources_list
 
     @typechecked
     def get_whatsapp_filename_date(self) -> Optional[datetime]:
