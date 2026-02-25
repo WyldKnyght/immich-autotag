@@ -15,6 +15,7 @@ from immich_autotag.api.logging_proxy.types import Unset, UpdateAssetDto
 from immich_autotag.assets.asset_cache_entry import (
     AssetCacheEntry,
 )
+from immich_autotag.assets.asset_response_wrapper_list import AssetResponseWrapperList
 from immich_autotag.classification.classification_status import ClassificationStatus
 from immich_autotag.classification.match_classification_result import (
     MatchClassificationResult,
@@ -165,7 +166,7 @@ class AssetResponseWrapper:
     @typechecked
     def get_all_duplicate_wrappers(
         self, *, include_self: bool = True
-    ) -> "AssetResponseWrapperList":
+    ) -> AssetResponseWrapperList:
         """
         Returns an AssetResponseWrapperList for all duplicates of this asset.
         If include_self is True, includes this asset as well.

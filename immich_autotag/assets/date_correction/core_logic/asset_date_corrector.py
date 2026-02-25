@@ -160,7 +160,7 @@ class AssetDateCorrector(ProcessStepResult):
         immich_utc = to_utc(immich_date)
         oldest_utc = to_utc(oldest)
         msg = (
-            f"[DATE CORRECTION] Unhandled case: Immich date {immich_date} and oldest {oldest} (asset {self.asset_wrapper.get_id()})\n"
+            f"[DATE CORRECTION] Unhandled case: Immich date {immich_date} and oldest {oldest} (asset {self._asset_wrapper.get_id()})\n"
             f"[DATE CORRECTION][UTC] Immich date UTC: {immich_utc}, oldest UTC: {oldest_utc}"
             f"[DATE CORRECTION][DIFF] Immich date - oldest: {diff_timedelta} ({diff_seconds:.1f} seconds)\n"
             f"\n[COMPLETE DIAGNOSIS]\n{self._date_sources_list.format_full_info()}"
