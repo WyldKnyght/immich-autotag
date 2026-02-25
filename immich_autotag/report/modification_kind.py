@@ -204,7 +204,7 @@ class ModificationKind(Enum):
         log_level=LogLevel.WARNING,
         level=ModificationLevel.WARNING,
         requires_asset=False,
-        requires_album=True,
+        requires_album=False,
         requires_tag=False,
     )
     CLASSIFICATION_CONFLICT = ModificationKindInfo(
