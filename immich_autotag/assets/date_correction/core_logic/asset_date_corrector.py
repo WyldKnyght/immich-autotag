@@ -66,6 +66,8 @@ class AssetDateCorrector(ProcessStepResult):
         """
 
         wrappers = self._asset_wrapper.get_all_duplicate_wrappers(include_self=False)
+        if wrappers.is_empty():
+            return DateCorrectionStepResult.EXIT  # No duplicates, nothing to correct
         self._date_sources_list = AssetDateSourcesList.from_wrappers(
             self._asset_wrapper, wrappers
         )

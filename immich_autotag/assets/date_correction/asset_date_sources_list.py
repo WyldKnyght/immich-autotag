@@ -151,6 +151,16 @@ class AssetDateSourcesList:
             result.extend(candidate_set.candidates_by_kinds(kinds))
         return result
 
+    @staticmethod
+    @typechecked
+    def from_main_asset_wrapper(
+        asset_wrapper: "AssetResponseWrapper",
+    ) -> "AssetDateSourcesList":
+        """
+        Create an AssetDateSourcesList with only the main asset wrapper and no candidates.
+        """
+        return AssetDateSourcesList(asset_wrapper)
+
     @typechecked
     def __iter__(self):
         return iter(self.get_date_candidates_per_duplicate())

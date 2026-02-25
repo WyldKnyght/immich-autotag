@@ -27,6 +27,10 @@ class AssetResponseWrapperList:
     def to_list(self) -> List[AssetResponseWrapper]:
         return list(self._assets)
 
+    def is_empty(self) -> bool:
+        """Return True if the collection is empty."""
+        return len(self._assets) == 0
+
     def __getitem__(self, idx: int) -> AssetResponseWrapper:
         return self._assets[idx]
 
