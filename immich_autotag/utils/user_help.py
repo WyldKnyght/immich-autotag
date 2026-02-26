@@ -4,7 +4,10 @@ from typing import List
 
 from typeguard import typechecked
 
+from immich_autotag.config.manager import ConfigManager
 from immich_autotag.config.models import UserConfig
+from immich_autotag.logging.levels import LogLevel
+from immich_autotag.logging.utils import log
 
 
 @typechecked
@@ -167,3 +170,16 @@ def print_config_help() -> None:
         webbrowser.open(web_url)
     except Exception:
         pass
+
+
+def init_config_and_print_welcome() -> ConfigManager:
+    """
+    Initialize ConfigManager, log initialization, print welcome links, and return the manager.
+    """
+    manager = ConfigManager.get_instance()
+    log("Initializing ConfigManager...", level=LogLevel.INFO)
+    config = (
+        manager.get_config()
+    )  # This will trigger lazy loading of the configuration if it hasn't been loaded yet
+    print_welcome_links(config)
+    return manager

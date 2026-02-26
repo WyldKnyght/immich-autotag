@@ -702,7 +702,7 @@ class AlbumCollectionWrapper:
         )
         cache_entry_obj = AlbumCacheEntry.create(dto=state)
         wrapper = AlbumResponseWrapper(cache_entry_obj)
-        duplicated_by_name = self._albums.get_by_name(wrapper.get_album_name()) 
+        duplicated_by_name = self._albums.get_by_name(wrapper.get_album_name())
         if duplicated_by_name is not None:
             # Name conflict: log and skip adding to collection (will be handled by duplicate logic later)
             from immich_autotag.logging.levels import LogLevel

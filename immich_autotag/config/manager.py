@@ -11,6 +11,8 @@ import attrs
 import yaml
 from typeguard import typechecked
 
+from immich_autotag.config.user_config_override import apply_config_overrides
+
 from .config_finder import find_user_config, load_python_config, load_yaml_config
 from .models import UserConfig
 
@@ -97,6 +99,7 @@ class ConfigManager:
         # --- New configuration search and loading logic ---
         self._load()
         # Dump the loaded configuration to the logs/output folder
+        apply_config_overrides(self._config)
         self.dump_to_yaml()
         self.print_config()
 
@@ -114,7 +117,8 @@ class ConfigManager:
             )
 
         # --- New configuration search and loading logic ---
-        self._construction()
+        # DISABLED CONSTRUCTION, LAZY LOADING IN get_config() INSTEAD
+        # self._construction()
         # Initialize skip_n with the counter from the last previous execution (with overlap)
         _instance_created = True
         log(
@@ -210,13 +214,9 @@ class ConfigManager:
 
     def get_config(self) -> UserConfig:
         if self._config is None:
-            raise RuntimeError("No configuration loaded.")
-        return self._config
-
-    # --- Automatic loading at startup (usage example) ---
-    def get_config_or_raise(self) -> UserConfig:
+            self._construction()
         if self._config is None:
-            raise ValueError("No configuration loaded in ConfigManager.")
+            raise RuntimeError("Failed to load configuration.")
         return self._config
 
     @staticmethod
@@ -225,6 +225,7 @@ class ConfigManager:
         Returns the effective max items to process, giving priority to FORCE_MAX_ITEMS_TO_PROCESS
         in internal_config.py. If not set, falls back to user config.
         """
+        # TODO: This method is currently used in a few places to enforce a global limit for CI/dev testing. It may be better to centralize this logic in the processing pipeline or a utility function, rather than having it as a static method on ConfigManager.
         from immich_autotag.config.internal_config import FORCE_MAX_ITEMS_TO_PROCESS
 
         if FORCE_MAX_ITEMS_TO_PROCESS is not None:
