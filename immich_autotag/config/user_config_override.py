@@ -25,20 +25,30 @@ This approach improves maintainability, clarity, and encapsulation, and makes it
 from immich_autotag.config.models import ClassificationRule, UserConfig
 
 
+def add_asset_filter_override(user_config: UserConfig, asset_uuid: str) -> None:
+    """
+    Adds a ClassificationRule filter for the given asset_uuid to user_config.filters.filter_in.
+    If user_config.filters is None, initializes it.
+    """
+    from immich_autotag.config.models import FilterConfig
+
+    new_rule = ClassificationRule(asset_links=[asset_uuid])
+    if user_config.filters is None:
+        user_config.filters = FilterConfig(filter_in=[new_rule])
+    else:
+        user_config.filters.filter_in.append(new_rule)
+
+
 def apply_config_overrides(user_config: UserConfig):
     """
     Apply internal overrides to user_config. If internal_config is provided and contains values
     that should take precedence, update user_config accordingly.
     This is a stub; actual logic will be added iteratively.
     """
-    asset_uuid_str = "4cc4171f-f8a5-47eb-bbc1-a4834cc51bce"
-    new_rule = ClassificationRule(
-        asset_links=["example_link"],
-    )
-    if user_config.filters is None:
-        user_config.filters = UserConfig.Filters(filter_in=[new_rule])
-    else:
-        user_config.filters.filter_in.append(new_rule)
+    from immich_autotag.config.internal_config import FILTER_OVERRIDE_ASSET_UUID
+
+    if FILTER_OVERRIDE_ASSET_UUID is not None:
+        add_asset_filter_override(user_config, FILTER_OVERRIDE_ASSET_UUID)
     # Example: override asset processing limit
     raise NotImplementedError(
         "Override logic not implemented yet. This is a placeholder."
