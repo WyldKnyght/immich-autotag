@@ -60,7 +60,7 @@ class ClassificationRuleSet:
 
         wrappers = [
             ClassificationRuleWrapper(rule)
-            for rule in manager.get_config_or_raise().classification.rules
+            for rule in manager.get_config().classification.rules
         ]
         return ClassificationRuleSet(rules=wrappers)
 

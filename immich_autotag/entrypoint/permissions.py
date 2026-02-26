@@ -10,6 +10,6 @@ from immich_autotag.permissions import process_album_permissions
 
 def process_permissions(manager: ConfigManager, context: ImmichContext) -> None:
 
-    config = manager.get_config_or_raise()
+    config = manager.get_config()
     process_album_permissions(config, context)
     sync_all_album_permissions(config, context)
