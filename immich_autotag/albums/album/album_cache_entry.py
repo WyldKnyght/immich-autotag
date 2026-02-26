@@ -138,8 +138,10 @@ class AlbumCacheEntry:
 
     def get_state(self) -> AlbumDtoState:
         if self.is_stale():
+            album_id = self._dto.get_album_id()
+            album_url = self.get_immich_album_url().geturl()
             raise StaleAlbumCacheError(
-                f"Album cache entry is stale (>{self._max_age_seconds}s)"
+                f"Album cache entry is stale (>{self._max_age_seconds}s) for album_id={album_id} (link: {album_url})"
             )
         return self._dto
 
