@@ -28,13 +28,36 @@ class ModificationLevel(Enum):
 
 @attrs.define(frozen=True, auto_attribs=True, slots=True)
 class ModificationKindInfo:
-    name: str = attrs.field()
-    log_level: LogLevel = attrs.field()
-    level: ModificationLevel = attrs.field()
-    # is_error/is_change removed; use methods instead
+    _name: str = attrs.field(alias="name")
+    _log_level: LogLevel | None = attrs.field(
+        alias="log_level", init=False, default=None
+    )
+    _level: ModificationLevel = attrs.field(alias="level")
     _requires_asset: bool = attrs.field(alias="requires_asset")
     _requires_album: bool = attrs.field(alias="requires_album")
     _requires_tag: bool = attrs.field(alias="requires_tag")
+
+    def get_name(self) -> str:
+        return self._name
+
+    def get_log_level(self) -> LogLevel:
+        if self._log_level is not None:
+            return self._log_level
+        # Dynamic fallback based on modification level
+        match self._level:
+            case ModificationLevel.MODIFICATION:
+                return LogLevel.PROGRESS
+            case ModificationLevel.WARNING:
+                return LogLevel.WARNING
+            case ModificationLevel.ERROR:
+                return LogLevel.ERROR
+            case ModificationLevel.UNKNOWN:
+                return LogLevel.IMPORTANT
+        # Fallback (should not happen)
+        return LogLevel.IMPORTANT
+
+    def get_level(self) -> ModificationLevel:
+        return self._level
 
     def requires_asset(self) -> bool:
         return self._requires_asset
@@ -47,7 +70,7 @@ class ModificationKindInfo:
 
     def is_change(self) -> bool:
         """Return True if this kind represents a modification/change."""
-        return self.level.is_modification()
+        return self._level.is_modification()
 
 
 class ModificationKind(Enum):
@@ -55,7 +78,6 @@ class ModificationKind(Enum):
     # --- Asset-related modifications ---
     ADD_TAG_TO_ASSET = ModificationKindInfo(
         name="ADD_TAG_TO_ASSET",
-        log_level=LogLevel.FOCUS,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=False,
@@ -63,7 +85,6 @@ class ModificationKind(Enum):
     )
     REMOVE_TAG_FROM_ASSET = ModificationKindInfo(
         name="REMOVE_TAG_FROM_ASSET",
-        log_level=LogLevel.FOCUS,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=False,
@@ -71,7 +92,6 @@ class ModificationKind(Enum):
     )
     REMOVE_TAG_GLOBALLY = ModificationKindInfo(
         name="REMOVE_TAG_GLOBALLY",
-        log_level=LogLevel.IMPORTANT,
         level=ModificationLevel.MODIFICATION,
         requires_asset=False,
         requires_album=False,
@@ -79,7 +99,6 @@ class ModificationKind(Enum):
     )
     CREATE_TAG = ModificationKindInfo(
         name="CREATE_TAG",
-        log_level=LogLevel.IMPORTANT,
         level=ModificationLevel.MODIFICATION,
         requires_asset=False,
         requires_album=False,
@@ -87,7 +106,6 @@ class ModificationKind(Enum):
     )
     WARNING_TAG_REMOVAL_FROM_ASSET_FAILED = ModificationKindInfo(
         name="WARNING_TAG_REMOVAL_FROM_ASSET_FAILED",
-        log_level=LogLevel.WARNING,
         level=ModificationLevel.WARNING,
         requires_asset=True,
         requires_album=False,
