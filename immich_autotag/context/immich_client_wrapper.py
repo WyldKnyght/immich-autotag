@@ -22,7 +22,7 @@ class ImmichClientWrapper:
         from immich_autotag.types.client_types import ImmichClient
 
         manager = ConfigManager.get_instance()
-        api_key = manager.get_config_or_raise().server.api_key
+        api_key = manager.get_config().server.api_key
         return ImmichClient(
             base_url=get_immich_base_url(),
             token=api_key,

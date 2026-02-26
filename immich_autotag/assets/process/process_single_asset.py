@@ -51,7 +51,7 @@ def _correct_date_if_enabled(
     can be accessed at the upper level (format_diagnosis, get_reasoning, etc.)
     """
 
-    config = ConfigManager.get_instance().get_config_or_raise()
+    config = ConfigManager.get_instance().get_config()
     duplicate_processing = config.duplicate_processing
     if duplicate_processing is None:
         raise ValueError("duplicate_processing configuration must not be None")

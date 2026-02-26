@@ -611,7 +611,7 @@ class AssetResponseWrapper:
 
         from immich_autotag.config.models import ClassificationConfig
 
-        config: UserConfig = ConfigManager.get_instance().get_config_or_raise()
+        config: UserConfig = ConfigManager.get_instance().get_config()
         classification: ClassificationConfig = config.classification
         tag_name = classification.autotag_unknown
         if tag_name is None:
@@ -651,7 +651,7 @@ class AssetResponseWrapper:
 
         from immich_autotag.config.models import ClassificationConfig
 
-        config: UserConfig = ConfigManager.get_instance().get_config_or_raise()
+        config: UserConfig = ConfigManager.get_instance().get_config()
         classification: ClassificationConfig = config.classification
         tag_name = classification.autotag_conflict
         if tag_name is None:
@@ -762,7 +762,7 @@ class AssetResponseWrapper:
             ClassificationStatus,
         )
 
-        config: UserConfig = ConfigManager.get_instance().get_config_or_raise()
+        config: UserConfig = ConfigManager.get_instance().get_config()
         if not config.album_detection_from_folders.enabled:
             return None
 
@@ -885,7 +885,7 @@ class AssetResponseWrapper:
         If there is conflict, adds the tag if not present. If no conflict and tag is present, removes it.
         Also handles the per-duplicate-set tag if duplicate_id is provided (UUID).
         """
-        config: UserConfig = ConfigManager.get_instance().get_config_or_raise()
+        config: UserConfig = ConfigManager.get_instance().get_config()
         tag_name = None
         # Use explicit type and direct access for duplicate_processing
         if config and config.duplicate_processing is not None:
@@ -949,7 +949,7 @@ class AssetResponseWrapper:
         If no conflict and tag is present, removes it.
         """
 
-        config: UserConfig = ConfigManager.get_instance().get_config_or_raise()
+        config: UserConfig = ConfigManager.get_instance().get_config()
         tag_name = None
         # Use explicit type and direct access for duplicate_processing
         if config and config.duplicate_processing is not None:

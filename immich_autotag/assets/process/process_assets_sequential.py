@@ -30,7 +30,7 @@ def process_assets_sequential(
     config_skip_n = 0
     config_resume_previous = True
 
-    config = cm.get_config_or_raise()
+    config = cm.get_config()
     # config.skip is never None
     config_skip_n = config.skip.skip_n or 0
     config_resume_previous = config.skip.resume_previous

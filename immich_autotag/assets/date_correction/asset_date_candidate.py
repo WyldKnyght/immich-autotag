@@ -59,7 +59,7 @@ class AssetDateCandidate:
             )
 
             manager = ConfigManager.get_instance()
-            config: UserConfig = manager.get_config_or_raise()
+            config: UserConfig = manager.get_config()
             tz_str = "UTC"  # Default fallback
             duplicate_processing: Optional[DuplicateProcessingConfig] = (
                 config.duplicate_processing

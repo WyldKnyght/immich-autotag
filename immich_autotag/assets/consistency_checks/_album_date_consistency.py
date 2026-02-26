@@ -86,7 +86,7 @@ class AlbumDateConsistencyResult(ProcessStepResult):
         return result
 
     def _perform_check(self, tag_mod_report: ModificationReport) -> None:
-        config = ConfigManager.get_instance().get_config_or_raise()
+        config = ConfigManager.get_instance().get_config()
         if config.album_date_consistency is None:
             raise ValueError("album_date_consistency configuration must not be None")
 

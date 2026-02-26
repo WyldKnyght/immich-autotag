@@ -18,7 +18,7 @@ def initialize_logging() -> None:
 
     manager = ConfigManager.get_instance()
     filter_wrapper = FilterConfigWrapper.from_filter_config(
-        manager.get_config_or_raise().filters
+        manager.get_config().filters
     )
 
     # --- Forced logging logic for development/CI ---

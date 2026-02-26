@@ -15,7 +15,7 @@ def _get_extraction_timezone() -> Optional[ZoneInfo]:
     try:
         from immich_autotag.config.manager import ConfigManager
 
-        config: UserConfig = ConfigManager.get_instance().get_config_or_raise()
+        config: UserConfig = ConfigManager.get_instance().get_config()
         if config.duplicate_processing is None:
             return None
         return ZoneInfo(config.duplicate_processing.date_correction.extraction_timezone)

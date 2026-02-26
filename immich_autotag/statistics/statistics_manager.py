@@ -308,7 +308,7 @@ class StatisticsManager:
         from immich_autotag.config.manager import ConfigManager
 
         manager: ConfigManager = ConfigManager.get_instance()
-        config: UserConfig = manager.get_config_or_raise()
+        config: UserConfig = manager.get_config()
         tags: set[str] = set()
         # Always add classification tags if not None
         if config.classification.autotag_unknown is not None:
