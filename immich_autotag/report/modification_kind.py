@@ -78,7 +78,6 @@ class ModificationKind(Enum):
     # --- Asset-related modifications ---
     ADD_TAG_TO_ASSET = ModificationKindInfo(
         name="ADD_TAG_TO_ASSET",
-        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=False,
@@ -86,7 +85,6 @@ class ModificationKind(Enum):
     )
     REMOVE_TAG_FROM_ASSET = ModificationKindInfo(
         name="REMOVE_TAG_FROM_ASSET",
-        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=False,
@@ -94,7 +92,6 @@ class ModificationKind(Enum):
     )
     REMOVE_TAG_GLOBALLY = ModificationKindInfo(
         name="REMOVE_TAG_GLOBALLY",
-        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=False,
         requires_album=False,
@@ -102,7 +99,6 @@ class ModificationKind(Enum):
     )
     CREATE_TAG = ModificationKindInfo(
         name="CREATE_TAG",
-        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=False,
         requires_album=False,
@@ -110,7 +106,6 @@ class ModificationKind(Enum):
     )
     WARNING_TAG_REMOVAL_FROM_ASSET_FAILED = ModificationKindInfo(
         name="WARNING_TAG_REMOVAL_FROM_ASSET_FAILED",
-        log_level=None,
         level=ModificationLevel.WARNING,
         requires_asset=True,
         requires_album=False,
@@ -118,7 +113,6 @@ class ModificationKind(Enum):
     )
     WARNING_TAG_ADDITION_TO_ASSET_FAILED = ModificationKindInfo(
         name="WARNING_TAG_ADDITION_TO_ASSET_FAILED",
-        log_level=LogLevel.WARNING,
         level=ModificationLevel.WARNING,
         requires_asset=True,
         requires_album=False,
@@ -126,7 +120,6 @@ class ModificationKind(Enum):
     )
     WARNING_ASSET_ALREADY_IN_ALBUM = ModificationKindInfo(
         name="WARNING_ASSET_ALREADY_IN_ALBUM",
-        log_level=LogLevel.WARNING,
         level=ModificationLevel.WARNING,
         requires_asset=True,
         requires_album=True,
@@ -134,7 +127,6 @@ class ModificationKind(Enum):
     )
     WARNING_ASSET_NOT_IN_ALBUM = ModificationKindInfo(
         name="WARNING_ASSET_NOT_IN_ALBUM",
-        log_level=LogLevel.WARNING,
         level=ModificationLevel.WARNING,
         requires_asset=True,
         requires_album=True,
@@ -142,7 +134,6 @@ class ModificationKind(Enum):
     )
     ASSIGN_ASSET_TO_ALBUM = ModificationKindInfo(
         name="ASSIGN_ASSET_TO_ALBUM",
-        log_level=LogLevel.FOCUS,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=True,
@@ -150,7 +141,6 @@ class ModificationKind(Enum):
     )
     REMOVE_ASSET_FROM_ALBUM = ModificationKindInfo(
         name="REMOVE_ASSET_FROM_ALBUM",
-        log_level=LogLevel.FOCUS,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=True,
@@ -158,7 +148,6 @@ class ModificationKind(Enum):
     )
     UPDATE_ASSET_DATE = ModificationKindInfo(
         name="UPDATE_ASSET_DATE",
-        log_level=LogLevel.FOCUS,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=False,
@@ -166,7 +155,6 @@ class ModificationKind(Enum):
     )
     ERROR_ASSET_SKIPPED_RECOVERABLE = ModificationKindInfo(
         name="ERROR_ASSET_SKIPPED_RECOVERABLE",
-        log_level=LogLevel.ERROR,
         level=ModificationLevel.ERROR,
         requires_asset=True,
         requires_album=False,
