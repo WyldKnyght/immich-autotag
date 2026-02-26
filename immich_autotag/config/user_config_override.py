@@ -35,7 +35,10 @@ def apply_config_overrides(user_config: UserConfig):
     new_rule = ClassificationRule(
         asset_links=["example_link"],
     )
-    user_config.filters.filter_in.append(new_rule)
+    if user_config.filters is None:
+        user_config.filters = UserConfig.Filters(filter_in=[new_rule])
+    else:
+        user_config.filters.filter_in.append(new_rule)
     # Example: override asset processing limit
     raise NotImplementedError(
         "Override logic not implemented yet. This is a placeholder."
