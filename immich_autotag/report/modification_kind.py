@@ -26,7 +26,7 @@ class ModificationLevel(Enum):
         return self == ModificationLevel.UNKNOWN
 
 
-@attrs.define(frozen=True, auto_attribs=True, slots=True)
+@attrs.define(frozen=True, auto_attribs=True, slots=True, kw_only=True)
 class ModificationKindInfo:
     _name: str = attrs.field(alias="name")
     _log_level: LogLevel | None = attrs.field(
@@ -78,6 +78,7 @@ class ModificationKind(Enum):
     # --- Asset-related modifications ---
     ADD_TAG_TO_ASSET = ModificationKindInfo(
         name="ADD_TAG_TO_ASSET",
+        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=False,
@@ -85,6 +86,7 @@ class ModificationKind(Enum):
     )
     REMOVE_TAG_FROM_ASSET = ModificationKindInfo(
         name="REMOVE_TAG_FROM_ASSET",
+        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=True,
         requires_album=False,
@@ -92,6 +94,7 @@ class ModificationKind(Enum):
     )
     REMOVE_TAG_GLOBALLY = ModificationKindInfo(
         name="REMOVE_TAG_GLOBALLY",
+        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=False,
         requires_album=False,
@@ -99,6 +102,7 @@ class ModificationKind(Enum):
     )
     CREATE_TAG = ModificationKindInfo(
         name="CREATE_TAG",
+        log_level=None,
         level=ModificationLevel.MODIFICATION,
         requires_asset=False,
         requires_album=False,
@@ -106,6 +110,7 @@ class ModificationKind(Enum):
     )
     WARNING_TAG_REMOVAL_FROM_ASSET_FAILED = ModificationKindInfo(
         name="WARNING_TAG_REMOVAL_FROM_ASSET_FAILED",
+        log_level=None,
         level=ModificationLevel.WARNING,
         requires_asset=True,
         requires_album=False,
@@ -319,7 +324,7 @@ class ModificationKind(Enum):
     )
 
     def get_level(self) -> ModificationLevel:
-        return self.value.level
+        return self.value.get_level()
 
     def is_error(self) -> bool:
         return self.get_level().is_error()
@@ -335,4 +340,4 @@ class ModificationKind(Enum):
 
     def is_change(self) -> bool:
         """Return True if this kind represents a modification/change."""
-        return self.value.level.is_modification()
+        return self.value.is_change()
