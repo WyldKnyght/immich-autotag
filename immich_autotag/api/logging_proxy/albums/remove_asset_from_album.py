@@ -27,6 +27,11 @@ def _execute_remove_asset_api(
     from immich_autotag.context.immich_client_wrapper import ImmichClientWrapper
 
     client = ImmichClientWrapper.get_default_instance().get_client()
+    
+    # Construct URLs for better debugging
+    asset_url = asset_wrapper.get_immich_photo_url().geturl()
+    album_url = album.get_immich_album_url().geturl()
+    
     result = proxy_remove_asset_from_album(
         album_id=album.get_album_uuid(),
         client=client,
@@ -34,20 +39,28 @@ def _execute_remove_asset_api(
     )
     if result is None:
         raise RuntimeError(
-            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API returned None"
+            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API returned None\n"
+            f"Asset: {asset_url}\n"
+            f"Album: {album_url}"
         )
     if len(result) != 1:
         raise RuntimeError(
-            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API returned empty result list"
+            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API returned empty result list\n"
+            f"Asset: {asset_url}\n"
+            f"Album: {album_url}"
         )
     result1: BulkIdResponseDto = result[0]
     if result1.error:
         raise RuntimeError(
-            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API error: {result1.error}"
+            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API error: {result1.error}\n"
+            f"Asset: {asset_url}\n"
+            f"Album: {album_url}"
         )
     if not result1.success:
         raise RuntimeError(
-            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API returned success=False"
+            f"Failed to remove asset {asset_wrapper.get_id()} from album {album.get_album_uuid()}: API returned success=False\n"
+            f"Asset: {asset_url}\n"
+            f"Album: {album_url}"
         )
     return result
 
