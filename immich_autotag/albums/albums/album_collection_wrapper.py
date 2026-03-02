@@ -899,6 +899,16 @@ class AlbumCollectionWrapper:
         asset_map_manager = self._get_asset_map_manager()
         asset_map_manager.add_album_for_asset(asset, album)
 
+    def remove_asset_from_album_in_map(
+        self, *, asset: "AssetResponseWrapper", album: AlbumResponseWrapper
+    ) -> None:
+        """
+        Removes a specific asset from a specific album in the asset-to-albums map.
+        This should be called after an asset is removed from an album to keep the cache in sync.
+        """
+        asset_map_manager = self._get_asset_map_manager()
+        asset_map_manager.remove_album_for_asset(asset, album)
+
     def __len__(self) -> int:
         """
         Returns the number of albums in the collection (including deleted unless

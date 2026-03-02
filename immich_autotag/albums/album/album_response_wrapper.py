@@ -296,7 +296,10 @@ class AlbumResponseWrapper:
         # If entry is None, asset was already in album and we're not raising
         if entry is not None and entry.kind is ModificationKind.ASSIGN_ASSET_TO_ALBUM:
             pass
-        elif entry is not None and entry.kind is ModificationKind.WARNING_ASSET_ALREADY_IN_ALBUM:
+        elif (
+            entry is not None
+            and entry.kind is ModificationKind.WARNING_ASSET_ALREADY_IN_ALBUM
+        ):
             pass
         else:
             raise NotImplementedError(
@@ -335,11 +338,22 @@ class AlbumResponseWrapper:
 
         Safe to call even if asset is not in album (idempotent operation).
         Raises exception only if the removal fails unexpectedly.
+
+        Updates the album collection's asset-to-albums mapping to keep cache in sync.
         """
         # 1. Validation
         self._ensure_removal_allowed()
         report_mod_entry = self._cache_entry.remove_asset(
             asset_wrapper=asset_wrapper, album=self
+        )
+
+        # 2. Update album collection cache to reflect the removal
+        from immich_autotag.albums.albums.album_collection_wrapper import (
+            AlbumCollectionWrapper,
+        )
+
+        AlbumCollectionWrapper.get_instance().remove_asset_from_album_in_map(
+            asset=asset_wrapper, album=self
         )
 
         return report_mod_entry

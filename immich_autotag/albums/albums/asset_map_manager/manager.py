@@ -166,6 +166,15 @@ class AssetMapManager:
         if not self._is_map_loaded:
             self._build_map()
 
+    def remove_album_for_asset(
+        self, asset_wrapper: "AssetResponseWrapper", album_wrapper: AlbumResponseWrapper
+    ) -> None:
+        """Removes a specific album from a specific asset's album list."""
+        self._load_map()
+        self._asset_to_albums_map.remove_album_for_asset(
+            asset_wrapper.get_id(), album_wrapper
+        )
+
     def get_map(self) -> AssetToAlbumsMap:
         """Returns the current mapping. Ensures the map is loaded."""
         self._load_map()
