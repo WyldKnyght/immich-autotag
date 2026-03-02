@@ -725,7 +725,11 @@ class AlbumCollectionWrapper:
                 return duplicated_by_name
             else:
                 raise NotImplementedError(
-                    "Album name conflict detected during wrapper creation. This scenario is not fully implemented. Review the logs for details and investigate the cause of the duplicate."
+                    "Album name conflict detected during wrapper creation for a non-temporary album. "
+                    f"album_name='{wrapper.get_album_name()}', "
+                    f"incoming_album_uuid={wrapper.get_album_uuid()}, "
+                    f"existing_album_uuid={duplicated_by_name.get_album_uuid()}. "
+                    "This scenario is not fully implemented. Review the logs and resolve the duplicate in Immich."
                 )
         self._albums.add(wrapper)
         return wrapper
