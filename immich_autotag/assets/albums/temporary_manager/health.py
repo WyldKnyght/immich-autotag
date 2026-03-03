@@ -2,7 +2,7 @@
 Health check logic for temporary albums.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from typeguard import typechecked
 
@@ -11,7 +11,6 @@ from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrap
 if TYPE_CHECKING:
     pass
 
-# Fix: Add missing import for datetime
 import datetime
 import enum
 
@@ -23,6 +22,52 @@ class TemporaryAlbumDateCheckMode(enum.Enum):
     DEVELOPER = "developer"  # Compare both and raise if mismatch
 
 
+class DateRange(NamedTuple):
+    """Represents a range between two dates."""
+
+    min_date: datetime.datetime
+    max_date: datetime.datetime
+
+
+def _ensure_datetime(date_value: datetime.datetime | str) -> datetime.datetime:
+    """
+    Converts string dates to datetime objects.
+    Assumes input is not None (caller must check before calling).
+    """
+    if isinstance(date_value, str):
+        return datetime.datetime.fromisoformat(date_value)
+    return date_value
+
+
+def _get_asset_dates(
+    album_wrapper: AlbumResponseWrapper,
+) -> DateRange | None:
+    """
+    Loads assets from album and extracts min/max dates.
+    Returns DateRange with (min_date, max_date) or None if insufficient dates found.
+    """
+    from immich_autotag.context.immich_context import ImmichContext
+
+    context = ImmichContext.get_default_instance()
+    assets = album_wrapper.wrapped_assets(context)
+
+    if not assets or len(assets) < 2:
+        return None
+
+    dates = [date for date in (a.get_best_date() for a in assets) if date is not None]
+    if len(dates) < 2:
+        return None
+
+    return DateRange(min_date=min(dates), max_date=max(dates))
+
+
+def _get_date_range_days(
+    min_date: datetime.datetime, max_date: datetime.datetime
+) -> int:
+    """Calculates the number of days between two datetime objects."""
+    return (max_date - min_date).days
+
+
 @typechecked
 def is_temporary_album_healthy(
     album_wrapper: AlbumResponseWrapper,
@@ -31,58 +76,58 @@ def is_temporary_album_healthy(
 ) -> bool:
     """
     Returns True if all assets in the temporary album are within max_days_apart of each other.
+    Optimized: ALBUM mode avoids loading assets if album dates are available.
     """
-    # Use the wrapper's own methods to get assets
-    # We assume context is available via asset_wrapper or globally
-    from immich_autotag.context.immich_context import ImmichContext
-
-    context = ImmichContext.get_default_instance()
-    assets = album_wrapper.wrapped_assets(context)
-    if not assets or len(assets) < 2:
-        return True
-    # Calculate min/max from assets
-    dates = [date for date in (a.get_best_date() for a in assets) if date is not None]
-    if len(dates) < 2:
-        return True
-    min_date = min(dates)
-    max_date = max(dates)
-    # Try to get album-provided min/max dates if available
     album_min_date = album_wrapper.get_start_date()
     album_max_date = album_wrapper.get_end_date()
 
-    # Logic based on mode
     if date_check_mode == TemporaryAlbumDateCheckMode.ALBUM:
-        # Trust album-provided dates if available, else fallback to assets
+        # Fast path: trust album-provided dates if available
         if album_min_date and album_max_date:
-            if isinstance(album_min_date, str):
-                album_min_date = datetime.datetime.fromisoformat(album_min_date)
-            if isinstance(album_max_date, str):
-                album_max_date = datetime.datetime.fromisoformat(album_max_date)
-            delta = (album_max_date - album_min_date).days
-        else:
-            delta = (max_date - min_date).days
+            min_dt = _ensure_datetime(album_min_date)
+            max_dt = _ensure_datetime(album_max_date)
+            delta = _get_date_range_days(min_dt, max_dt)
+            return delta <= max_days_apart
+
+        # Slow fallback: load assets only if album dates are missing
+        asset_dates = _get_asset_dates(album_wrapper)
+        if asset_dates is None:
+            return True
+        delta = _get_date_range_days(asset_dates.min_date, asset_dates.max_date)
         return delta <= max_days_apart
+
     elif date_check_mode == TemporaryAlbumDateCheckMode.ASSETS:
         # Always use asset-calculated dates
-        delta = (max_date - min_date).days
+        asset_dates = _get_asset_dates(album_wrapper)
+        if asset_dates is None:
+            return True
+        delta = _get_date_range_days(asset_dates.min_date, asset_dates.max_date)
         return delta <= max_days_apart
+
     elif date_check_mode == TemporaryAlbumDateCheckMode.DEVELOPER:
-        # Compare both, allow 1 day diff, raise if mismatch
+        # Compare both sources, allow 1 day diff, raise if mismatch
+        asset_dates = _get_asset_dates(album_wrapper)
+        if asset_dates is None:
+            return True
+
         if album_min_date and album_max_date:
-            if isinstance(album_min_date, str):
-                album_min_date = datetime.datetime.fromisoformat(album_min_date)
-            if isinstance(album_max_date, str):
-                album_max_date = datetime.datetime.fromisoformat(album_max_date)
-            min_diff = abs((min_date.date() - album_min_date.date()).days)
-            max_diff = abs((max_date.date() - album_max_date.date()).days)
+            album_min_dt = _ensure_datetime(album_min_date)
+            album_max_dt = _ensure_datetime(album_max_date)
+
+            min_diff = abs((asset_dates.min_date.date() - album_min_dt.date()).days)
+            max_diff = abs((asset_dates.max_date.date() - album_max_dt.date()).days)
+
             if min_diff > 1 or max_diff > 1:
                 raise RuntimeError(
-                    f"Temporary album date mismatch: calculated min/max {min_date.date()} - {max_date.date()} vs album-provided {album_min_date.date()} - {album_max_date.date()} (allowed diff: 1 day)"
+                    f"Temporary album date mismatch: calculated min/max {asset_dates.min_date.date()} - {asset_dates.max_date.date()} "
+                    f"vs album-provided {album_min_dt.date()} - {album_max_dt.date()} (allowed diff: 1 day)"
                 )
-            delta = (album_max_date - album_min_date).days
+            delta = _get_date_range_days(album_min_dt, album_max_dt)
         else:
-            delta = (max_date - min_date).days
+            delta = _get_date_range_days(asset_dates.min_date, asset_dates.max_date)
+
         return delta <= max_days_apart
+
     else:
         raise ValueError(f"Unknown TemporaryAlbumDateCheckMode: {date_check_mode}")
 
