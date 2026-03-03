@@ -1,3 +1,4 @@
+from immich_client.errors import UnexpectedStatus
 from immich_client.models.bulk_id_response_dto import BulkIdResponseDto
 from typeguard import typechecked
 
@@ -5,6 +6,10 @@ from immich_autotag.albums.album.album_dto_state import AlbumDtoState, AlbumLoad
 from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrapper
 from immich_autotag.api.immich_proxy.types import ImmichClient
 from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
+from immich_autotag.errors.recoverable_error import (
+    AlbumNotFoundError,
+    PermissionDeniedError,
+)
 from immich_autotag.logging.levels import LogLevel
 from immich_autotag.logging.utils import log
 from immich_autotag.report.modification_entry import ModificationEntry
@@ -197,16 +202,60 @@ def logging_add_assets_to_album(
 
     Returns:
         ModificationEntry if successful or None if asset already in album and raise_on_duplicate=False.
+
+    Raises:
+        AlbumNotFoundError: If album is deleted/not found (400 or 404 from API).
+        PermissionDeniedError: If access is denied (403 from API).
     """
     from immich_autotag.api.immich_proxy.albums.add_assets_to_album import (
         proxy_add_assets_to_album,
     )
 
-    result = proxy_add_assets_to_album(
-        album_id=album_wrapper.get_album_uuid(),
-        client=client,
-        asset_ids=[asset_wrapper.get_id()],
-    )
+    album_url = album_wrapper.get_immich_album_url()
+    asset_url = asset_wrapper.get_immich_photo_url()
+
+    try:
+        result = proxy_add_assets_to_album(
+            album_id=album_wrapper.get_album_uuid(),
+            client=client,
+            asset_ids=[asset_wrapper.get_id()],
+        )
+    except UnexpectedStatus as e:
+        # Capture API errors with enriched context (album + asset URLs)
+        status_code = e.status_code
+        response_content = (
+            e.content.decode("utf-8")
+            if isinstance(e.content, bytes)
+            else str(e.content)
+        )
+
+        if status_code in (400, 404):
+            # Album not found or deleted
+            raise AlbumNotFoundError(
+                message="Album not found or deleted during asset addition",
+                status_code=status_code,
+                response_content=response_content,
+                album_url=album_url,
+                asset_url=asset_url,
+            ) from e
+        elif status_code == 403:
+            # Permission denied
+            raise PermissionDeniedError(
+                message="Permission denied when adding asset to album",
+                status_code=status_code,
+                response_content=response_content,
+                album_url=album_url,
+                asset_url=asset_url,
+            ) from e
+        else:
+            # Other API errors - re-raise as generic RuntimeError with context
+            raise RuntimeError(
+                f"API error when adding asset {asset_wrapper.get_id()} to album {album_wrapper.get_album_uuid()}\n"
+                f"Status: {status_code}\n"
+                f"Response: {response_content}\n"
+                f"Asset URL: {asset_url.geturl()}\n"
+                f"Album URL: {album_url.geturl()}"
+            ) from e
 
     # 3. Handle result
     item = _find_asset_result_in_response(result, asset_wrapper.get_id())

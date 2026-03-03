@@ -17,6 +17,7 @@ Fatal errors: Should fail immediately
 from __future__ import annotations
 
 from dataclasses import dataclass
+from urllib.parse import ParseResult
 
 from typeguard import typechecked
 
@@ -31,13 +32,45 @@ class RecoverableError(Exception):
     pass
 
 
-class AlbumNotFoundError(RecoverableError):
-    """Raised when an album is deleted or becomes inaccessible during processing."""
+class ImmichApiError(RecoverableError):
+    """Base class for API errors from Immich server, enriched with context URLs."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        response_content: str | None = None,
+        album_url: ParseResult | None = None,
+        asset_url: ParseResult | None = None,
+    ):
+        self.message = message
+        self.status_code = status_code
+        self.response_content = response_content
+        self.album_url = album_url
+        self.asset_url = asset_url
+        super().__init__(self._format_message())
+
+    def _format_message(self) -> str:
+        """Format error message with context URLs."""
+        parts = [self.message]
+        if self.status_code:
+            parts.append(f"(HTTP {self.status_code})")
+        if self.album_url:
+            parts.append(f"\nAlbum URL: {self.album_url.geturl()}")
+        if self.asset_url:
+            parts.append(f"\nAsset URL: {self.asset_url.geturl()}")
+        if self.response_content:
+            parts.append(f"\nAPI Response: {self.response_content}")
+        return " ".join(parts)
+
+
+class AlbumNotFoundError(ImmichApiError):
+    """Raised when an album is deleted or becomes inaccessible during processing (400/404)."""
 
     pass
 
 
-class PermissionDeniedError(RecoverableError):
+class PermissionDeniedError(ImmichApiError):
     """Raised when access to a resource is denied (403 from API)."""
 
     pass

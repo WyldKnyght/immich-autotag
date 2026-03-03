@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 import datetime
 import enum
 
+from immich_client.types import Unset
+
 
 # Modes for date source logic in temporary album health check
 class TemporaryAlbumDateCheckMode(enum.Enum):
@@ -39,6 +41,17 @@ def _ensure_datetime(date_value: datetime.datetime | str) -> datetime.datetime:
     return date_value
 
 
+def _to_datetime_or_none(
+    date_value: datetime.datetime | str | Unset,
+) -> datetime.datetime | None:
+    """
+    Converts a date value to datetime when available, otherwise returns None.
+    """
+    if isinstance(date_value, Unset):
+        return None
+    return _ensure_datetime(date_value)
+
+
 def _get_asset_dates(
     album_wrapper: AlbumResponseWrapper,
 ) -> DateRange | None:
@@ -54,9 +67,7 @@ def _get_asset_dates(
     if not assets or len(assets) < 2:
         return None
 
-    dates = [date for date in (a.get_best_date() for a in assets) if date is not None]
-    if len(dates) < 2:
-        return None
+    dates = [a.get_best_date() for a in assets]
 
     return DateRange(min_date=min(dates), max_date=max(dates))
 
@@ -78,16 +89,19 @@ def is_temporary_album_healthy(
     Returns True if all assets in the temporary album are within max_days_apart of each other.
     Optimized: ALBUM mode avoids loading assets if album dates are available.
     """
-    album_min_date = album_wrapper.get_start_date()
-    album_max_date = album_wrapper.get_end_date()
+    album_min_dt = _to_datetime_or_none(album_wrapper.get_start_date_cached())
+    album_max_dt = _to_datetime_or_none(album_wrapper.get_end_date_cached())
+    asset_count = album_wrapper.get_asset_count()
 
     if date_check_mode == TemporaryAlbumDateCheckMode.ALBUM:
         # Fast path: trust album-provided dates if available
-        if album_min_date and album_max_date:
-            min_dt = _ensure_datetime(album_min_date)
-            max_dt = _ensure_datetime(album_max_date)
-            delta = _get_date_range_days(min_dt, max_dt)
+        if album_min_dt is not None and album_max_dt is not None:
+            delta = _get_date_range_days(album_min_dt, album_max_dt)
             return delta <= max_days_apart
+
+        # If there are fewer than 2 assets, there is no date span to validate.
+        if asset_count < 2:
+            return True
 
         # Slow fallback: load assets only if album dates are missing
         asset_dates = _get_asset_dates(album_wrapper)
@@ -97,6 +111,8 @@ def is_temporary_album_healthy(
         return delta <= max_days_apart
 
     elif date_check_mode == TemporaryAlbumDateCheckMode.ASSETS:
+        if asset_count < 2:
+            return True
         # Always use asset-calculated dates
         asset_dates = _get_asset_dates(album_wrapper)
         if asset_dates is None:
@@ -105,14 +121,14 @@ def is_temporary_album_healthy(
         return delta <= max_days_apart
 
     elif date_check_mode == TemporaryAlbumDateCheckMode.DEVELOPER:
+        if asset_count < 2:
+            return True
         # Compare both sources, allow 1 day diff, raise if mismatch
         asset_dates = _get_asset_dates(album_wrapper)
         if asset_dates is None:
             return True
 
-        if album_min_date and album_max_date:
-            album_min_dt = _ensure_datetime(album_min_date)
-            album_max_dt = _ensure_datetime(album_max_date)
+        if album_min_dt is not None and album_max_dt is not None:
 
             min_diff = abs((asset_dates.min_date.date() - album_min_dt.date()).days)
             max_diff = abs((asset_dates.max_date.date() - album_max_dt.date()).days)

@@ -144,8 +144,26 @@ class AlbumCacheEntry:
     def get_start_date(self) -> datetime.datetime | Unset:
         return self._ensure_full_loaded()._dto.get_start_date()
 
+    def get_start_date_cached(self) -> datetime.datetime | Unset:
+        """
+        Returns start date from the currently cached DTO without forcing full load.
+        """
+        return self._dto.get_start_date()
+
     def get_end_date(self) -> datetime.datetime | Unset:
         return self._dto.get_end_date()
+
+    def get_end_date_cached(self) -> datetime.datetime | Unset:
+        """
+        Returns end date from the currently cached DTO without forcing full load.
+        """
+        return self._dto.get_end_date()
+
+    def get_asset_count(self) -> int:
+        """
+        Returns album asset count from DTO metadata without forcing full load.
+        """
+        return self._dto.get_asset_count()
 
     def get_owner_uuid(self) -> "UserUUID":
         return self._dto.get_owner_uuid()

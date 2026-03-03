@@ -83,6 +83,25 @@ class AlbumResponseWrapper:
         """
         return self._cache_entry.get_end_date()
 
+    def get_start_date_cached(self) -> datetime.datetime | Unset:
+        """
+        Returns start date from current cached DTO without forcing a full reload.
+        """
+        return self._cache_entry.get_start_date_cached()
+
+    def get_end_date_cached(self) -> datetime.datetime | Unset:
+        """
+        Returns end date from current cached DTO without forcing a full reload.
+        """
+        return self._cache_entry.get_end_date_cached()
+
+    @typechecked
+    def get_asset_count(self) -> int:
+        """
+        Returns album asset count from DTO metadata without forcing a full reload.
+        """
+        return self._cache_entry.get_asset_count()
+
     # --- 3. Properties ---
     @property
     @typechecked
