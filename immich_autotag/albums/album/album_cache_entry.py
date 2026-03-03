@@ -176,9 +176,9 @@ class AlbumCacheEntry:
     def is_empty(self) -> bool:
         """
         Returns True if the album has no assets, False otherwise.
-        Does not force reload, uses the current DTO.
+        Uses asset_count without forcing full load (more efficient).
         """
-        return self._ensure_full_loaded()._dto.is_empty()
+        return self._dto.is_empty()
 
     # Removed unused _get_dto method (was exposing internal state)
 

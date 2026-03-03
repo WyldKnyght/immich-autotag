@@ -207,6 +207,23 @@ class AlbumDtoState:
         """
         return self._dto.asset_count == 0
 
+    def has_assets(self) -> bool:
+        """
+        Returns whether the album has at least one asset.
+
+        Inverse of is_empty(). Uses asset_count for efficiency.
+        """
+        return self._dto.asset_count > 0
+
+    def get_asset_count(self) -> int:
+        """
+        Returns the number of assets in the album.
+
+        This is available regardless of load source (SEARCH, DETAIL, UPDATE)
+        and is more efficient than accessing the assets list directly.
+        """
+        return self._dto.asset_count
+
     def get_asset_uuids(self) -> set[AssetUUID]:
         """
         Returns the set of asset UUIDs in the album.
@@ -224,6 +241,13 @@ class AlbumDtoState:
         return (time.time() - self.get_loaded_at().timestamp()) > self._max_age_seconds
 
     def get_assets(self):
+        """
+        Returns the full list of assets in the album.
+
+        WARNING: Only available in DETAIL/full mode. In SEARCH mode, assets
+        may be empty even if asset_count > 0. Use get_asset_count() for
+        checking the number of assets without deserializing this list.
+        """
         return self._dto.assets
 
     def get_album_uuid(self) -> AlbumUUID:
