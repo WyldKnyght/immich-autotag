@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
 
 import attrs
+from immich_client.types import Unset
 from typeguard import typechecked
 
 from immich_autotag.albums.album.album_dto_state import AlbumDtoState
@@ -62,26 +63,6 @@ class AlbumCacheEntry:
         """
         self._dto.merge_from_dto(dto, load_source)
 
-    def get_start_date(self) -> datetime.datetime | None:
-        return self._dto.get_start_date()
-
-    def get_end_date(self) -> datetime.datetime | None:
-        return self._dto.get_end_date()
-
-    def get_owner_uuid(self) -> "UserUUID":
-        return self._dto.get_owner_uuid()
-
-    def get_album_users(self) -> "AlbumUserList":
-        return self._dto.get_album_users()
-
-    def update(
-        self, *, dto: "AlbumResponseDto", load_source: "AlbumLoadSource"
-    ) -> None:
-        self._dto.update(dto=dto, load_source=load_source)
-
-    def is_full(self) -> bool:
-        return self._dto.is_full()
-
     @classmethod
     def _from_cache_or_api(
         cls,
@@ -133,18 +114,6 @@ class AlbumCacheEntry:
         cache_mgr.save(album_id_str, album_dto.to_dict())
         return AlbumDtoState.create(dto=album_dto, load_source=AlbumLoadSource.DETAIL)
 
-    def is_stale(self) -> bool:
-        return self._dto.is_stale()
-
-    def get_state(self) -> AlbumDtoState:
-        if self.is_stale():
-            album_id = self._dto.get_album_id()
-            album_url = self.get_immich_album_url().geturl()
-            raise StaleAlbumCacheError(
-                f"Album cache entry is stale (>{self._max_age_seconds}s) for album_id={album_id} (link: {album_url})"
-            )
-        return self._dto
-
     def _ensure_full_loaded(self) -> "AlbumCacheEntry":
         """
         Ensures the DTO is of type DETAIL (full). If not, reloads using _from_cache_or_api.
@@ -171,6 +140,38 @@ class AlbumCacheEntry:
         )
         _album_cache_global[album_id] = self
         return self
+
+    def get_start_date(self) -> datetime.datetime | Unset:
+        return self._ensure_full_loaded()._dto.get_start_date()
+
+    def get_end_date(self) -> datetime.datetime | Unset:
+        return self._dto.get_end_date()
+
+    def get_owner_uuid(self) -> "UserUUID":
+        return self._dto.get_owner_uuid()
+
+    def get_album_users(self) -> "AlbumUserList":
+        return self._dto.get_album_users()
+
+    def update(
+        self, *, dto: "AlbumResponseDto", load_source: "AlbumLoadSource"
+    ) -> None:
+        self._dto.update(dto=dto, load_source=load_source)
+
+    def is_full(self) -> bool:
+        return self._dto.is_full()
+
+    def is_stale(self) -> bool:
+        return self._dto.is_stale()
+
+    def get_state(self) -> AlbumDtoState:
+        if self.is_stale():
+            album_id = self._dto.get_album_id()
+            album_url = self.get_immich_album_url().geturl()
+            raise StaleAlbumCacheError(
+                f"Album cache entry is stale (>{self._max_age_seconds}s) for album_id={album_id} (link: {album_url})"
+            )
+        return self._dto
 
     def is_empty(self) -> bool:
         """

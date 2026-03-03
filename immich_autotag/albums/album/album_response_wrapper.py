@@ -8,6 +8,7 @@ from uuid import UUID
 
 import attrs
 from immich_client.models.album_response_dto import AlbumResponseDto
+from immich_client.types import Unset
 from typeguard import typechecked
 
 if TYPE_CHECKING:
@@ -70,13 +71,13 @@ class AlbumResponseWrapper:
     def __attrs_post_init__(self) -> None:
         pass
 
-    def get_start_date(self) -> datetime.datetime | None:
+    def get_start_date(self) -> datetime.datetime | Unset:
         """
         Returns the album's start date as a datetime object, or None if not available.
         """
         return self._cache_entry.get_start_date()
 
-    def get_end_date(self) -> datetime.datetime | None:
+    def get_end_date(self) -> datetime.datetime | Unset:
         """
         Returns the album's end date as a datetime object, or None if not available.
         """

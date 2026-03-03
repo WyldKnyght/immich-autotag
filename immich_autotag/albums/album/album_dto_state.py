@@ -5,6 +5,7 @@ from uuid import UUID
 
 import attrs
 from immich_client.models.album_response_dto import AlbumResponseDto
+from immich_client.types import Unset
 
 from immich_autotag.config.cache_config import DEFAULT_CACHE_MAX_AGE_SECONDS
 from immich_autotag.types.uuid_wrappers import AlbumUUID, AssetUUID, UserUUID
@@ -61,7 +62,7 @@ class AlbumDtoState:
         # _dto is always required and validated by attrs; no need to check for None
         pass
 
-    def get_start_date(self) -> datetime.datetime:
+    def get_start_date(self) -> datetime.datetime | Unset:
         """
         Returns the album's start date as a datetime object.
 
@@ -73,13 +74,15 @@ class AlbumDtoState:
 
         if isinstance(value, datetime.datetime):
             return value
+        if isinstance(value, Unset):
+            return value
 
         # Fail fast for any non-datetime value (None, Unset, string, etc.)
         raise TypeError(
             f"Album start_date must be datetime.datetime, got {type(value).__name__!r}: {value!r}"
         )
 
-    def get_end_date(self) -> datetime.datetime:
+    def get_end_date(self) -> datetime.datetime | Unset:
         """
         Returns the album's end date as a datetime object.
 
@@ -91,7 +94,8 @@ class AlbumDtoState:
 
         if isinstance(value, datetime.datetime):
             return value
-
+        if isinstance(value, Unset):
+            return value
         # Fail fast for any non-datetime value (None, Unset, string, etc.)
         raise TypeError(
             f"Album end_date must be datetime.datetime, got {type(value).__name__!r}: {value!r}"
