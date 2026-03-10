@@ -21,7 +21,7 @@ MAX_WORKERS = 1  # Set to 1 for sequential processing (recommended for best perf
 # Error handling mode (affects debug/trace behavior)
 DEFAULT_ERROR_MODE = ErrorHandlingMode.CRAZY_DEBUG
 # Enable cProfile CPU profiling regardless of error mode
-ENABLE_PROFILING = True  # Set to True to enable cProfile profiling
+ENABLE_PROFILING = False  # Set to True to enable cProfile profiling
 # Enable tracemalloc memory profiling
 ENABLE_MEMORY_PROFILING = False  # Set to False to disable tracemalloc memory profiling
 
@@ -56,7 +56,7 @@ ENABLE_ARCHITECTURE_IMPORT_HOOK = True
 
 # ==================== CONVERSIONS AT STARTUP ====================
 # Controls whether all conversions are applied to assets at application startup
-APPLY_CONVERSIONS_AT_START = False  # Set to False to disable mass processing at startup
+APPLY_CONVERSIONS_AT_START = True  # Set to False to disable mass processing at startup
 
 # ==================== MAINTENANCE: DELETE CONFLICT TAGS ====================
 # If False, disables the maintenance_delete_conflict_tags function (prevents accidental mass deletion)
@@ -79,4 +79,4 @@ FILTER_OVERRIDE_ASSET_UUID: str | None = None
 # If set (True/False), this will override user config's fail_fast_on_asset_errors.
 # If None, user config value is used.
 # Set to False to enable fault-tolerant mode (continue processing on errors) for large batch runs.
-FORCE_FAIL_FAST_ON_ASSET_ERRORS: bool | None = False
+FORCE_FAIL_FAST_ON_ASSET_ERRORS: bool | None = True
