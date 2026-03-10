@@ -29,8 +29,8 @@ def apply_conversions_to_all_assets_early(context: ImmichContext) -> None:
     before tags are accessed (lazy-load).
     Skips assets on error based on fail_fast_on_asset_errors config.
     """
-    from immich_autotag.conversions.tag_conversions import TagConversions
     from immich_autotag.config.manager import ConfigManager
+    from immich_autotag.conversions.tag_conversions import TagConversions
     from immich_autotag.errors.recoverable_error import categorize_error
     from immich_autotag.logging.levels import LogLevel
     from immich_autotag.logging.utils import log
