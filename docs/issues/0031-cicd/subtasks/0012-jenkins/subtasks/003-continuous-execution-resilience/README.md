@@ -131,6 +131,7 @@ Once decided, implementation can be prepared as a small controlled change in `Je
   - `SLEEP_SECONDS_SUCCESS=20`
   - `SLEEP_SECONDS_FAILURE=60`
   - `STOP_ON_ABORTED=true`
+  - Orchestrator pipeline timeout: `72h`
 6. Run orchestrator manually first and observe 2–3 cycles.
 
 ---
