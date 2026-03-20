@@ -35,6 +35,11 @@ def _apply_tag_conversions(
     asset_wrapper: AssetResponseWrapper,
 ) -> ModificationEntriesList:
     """Apply tag conversions to the asset using the current config."""
+    config = ConfigManager.get_instance().get_config()
+    if not config.conversions.enabled:
+        log("[DEBUG] Tag conversions disabled by config; skipping.", level=LogLevel.FOCUS)
+        return ModificationEntriesList()
+
     log("[DEBUG] Applying tag conversions...", level=LogLevel.FOCUS)
 
     tag_conversions = TagConversions.from_config_manager()

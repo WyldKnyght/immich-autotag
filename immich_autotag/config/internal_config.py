@@ -58,6 +58,11 @@ ENABLE_ARCHITECTURE_IMPORT_HOOK = True
 # Controls whether all conversions are applied to assets at application startup
 APPLY_CONVERSIONS_AT_START = False  # Set to False to disable mass processing at startup
 
+# ==================== CONVERSION OVERRIDES ====================
+# If set (True/False), this will override user config's conversions.enabled value.
+# If None, user config value is used.
+FORCE_ENABLE_TAG_CONVERSIONS: bool | None = None
+
 # ==================== MAINTENANCE: DELETE CONFLICT TAGS ====================
 # If False, disables the maintenance_delete_conflict_tags function (prevents accidental mass deletion)
 ENABLE_MAINTENANCE_DELETE_CONFLICT_TAGS = False  # Default: disabled for safety
@@ -73,7 +78,7 @@ FORCE_MAX_ITEMS_TO_PROCESS: int | None = None  # Limit for fast performance test
 # If set, this asset UUID will be injected as a filter override in user config (for testing/dev convenience).
 # Example: "4cc4171f-f8a5-47eb-bbc1-a4834cc51bce"
 
-FILTER_OVERRIDE_ASSET_UUID: str | None = None
+FILTER_OVERRIDE_ASSET_UUID: str | None = "http://immich.ad3.lab:2283/albums/28d6b021-402d-4c8c-b45d-df94463e767a/photos/5b73f4e5-81df-45b0-b671-c644b3f66f63"
 
 # ==================== ERROR HANDLING OVERRIDES ====================
 # If set (True/False), this will override user config's fail_fast_on_asset_errors.

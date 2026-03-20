@@ -48,6 +48,7 @@ def apply_config_overrides(user_config: UserConfig):
     from immich_autotag.config.internal_config import (
         FILTER_OVERRIDE_ASSET_UUID,
         FORCE_ENABLE_ALBUM_DETECTION_FROM_FOLDERS,
+        FORCE_ENABLE_TAG_CONVERSIONS,
         FORCE_FAIL_FAST_ON_ASSET_ERRORS,
     )
 
@@ -63,6 +64,9 @@ def apply_config_overrides(user_config: UserConfig):
         user_config.album_detection_from_folders.enabled = (
             FORCE_ENABLE_ALBUM_DETECTION_FROM_FOLDERS
         )
+
+    if FORCE_ENABLE_TAG_CONVERSIONS is not None:
+        user_config.conversions.enabled = FORCE_ENABLE_TAG_CONVERSIONS
 
     # Add more overrides as needed
     return user_config
