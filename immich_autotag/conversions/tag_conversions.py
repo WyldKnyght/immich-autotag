@@ -14,6 +14,8 @@ class TagConversions:
     def from_config_manager() -> "TagConversions":
         config_manager = ConfigManager.get_instance()
         config = config_manager.get_config()
+        if not config.conversions.enabled:
+            return TagConversions([])
         wrappers = [ConversionWrapper(conv) for conv in config.conversions.conversions]
         return TagConversions(wrappers)
 

@@ -107,6 +107,7 @@ user_config = UserConfig(
     # -------------------------------------------------------------------------
     # TAG CONVERSIONS: mapping of old tags or albums to new ones (compatibility/refactor)
     conversions=ConversionConfig(
+        enabled=True,
         description=(
             "These conversions are configured for a specific test case. I am experimenting with this functionality using conversions that are useful for propagating, converting, copying, or transforming tags or albums into others. "
             "This allows testing different types of classification, since sometimes albums work better, sometimes tags, and sometimes the Immich UI is more convenient for one or the other. "

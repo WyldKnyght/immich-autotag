@@ -147,15 +147,13 @@ class AlbumCollectionWrapper:
 
         return TemporaryAlbumManager(self)
 
-    def prepare_batch_asset_to_albums_map(self):
+    def cleanup_empty_temporary_albums(self) -> None:
         """
-        Precompute and cache the asset-to-albums map for the current batch. Also performs cleanup of empty temporary albums once.
+        TODO: renombrar esta funcion, ya no hace lo que dice
         """
         self._ensure_fully_loaded()
         temp_manager = self._get_temporary_album_manager()
         temp_manager.cleanup_empty_temporary_albums(self.get_client())
-        asset_map_manager = self._get_asset_map_manager()
-        self._batch_asset_to_albums_map = asset_map_manager.get_map()
 
     def clear_batch_asset_to_albums_map(self):
         """
@@ -561,7 +559,8 @@ class AlbumCollectionWrapper:
             return self._batch_asset_to_albums_map
         self._ensure_fully_loaded()
         asset_map_manager = self._get_asset_map_manager()
-        return asset_map_manager.get_map()
+        self._batch_asset_to_albums_map = asset_map_manager.get_map()
+        return self._batch_asset_to_albums_map
 
     @conditional_typechecked
     def albums_for_asset(self, asset: AssetResponseWrapper) -> AlbumList:

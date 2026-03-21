@@ -117,6 +117,10 @@ class ConversionConfig(BaseModel):
     """
 
     model_config = {"extra": "forbid"}
+    enabled: bool = Field(
+        default=True,
+        description="Enable or disable execution of configured conversion rules.",
+    )
     description: Optional[str] = Field(
         default=None,
         description="Optional description for the conversion configuration block.",

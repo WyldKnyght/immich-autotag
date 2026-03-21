@@ -58,6 +58,11 @@ ENABLE_ARCHITECTURE_IMPORT_HOOK = True
 # Controls whether all conversions are applied to assets at application startup
 APPLY_CONVERSIONS_AT_START = False  # Set to False to disable mass processing at startup
 
+# ==================== CONVERSION OVERRIDES ====================
+# If set (True/False), this will override user config's conversions.enabled value.
+# If None, user config value is used.
+FORCE_ENABLE_TAG_CONVERSIONS: bool | None = None
+
 # ==================== MAINTENANCE: DELETE CONFLICT TAGS ====================
 # If False, disables the maintenance_delete_conflict_tags function (prevents accidental mass deletion)
 ENABLE_MAINTENANCE_DELETE_CONFLICT_TAGS = False  # Default: disabled for safety
@@ -87,3 +92,23 @@ FORCE_FAIL_FAST_ON_ASSET_ERRORS: bool | None = False
 # Set to False to disable inferring/creating albums from containing folders
 # across development, CI, and normal runs without touching user config files.
 FORCE_ENABLE_ALBUM_DETECTION_FROM_FOLDERS: bool | None = False
+
+# ==================== ALBUM ASSIGNMENT OVERRIDES ====================
+# If set (True/False), this enables or disables the album assignment phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_ALBUM_ASSIGNMENT: bool | None = None
+
+# ==================== CLASSIFICATION VALIDATION OVERRIDES ====================
+# If set (True/False), this enables or disables the classification validation phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_CLASSIFICATION_VALIDATION: bool | None = None
+
+# ==================== DUPLICATE TAG ANALYSIS OVERRIDES ====================
+# If set (True/False), this enables or disables duplicate classification tag analysis.
+# If None, normal processing flow is used.
+FORCE_ENABLE_DUPLICATE_TAG_ANALYSIS: bool | None = None
+
+# ==================== ALBUM DATE CONSISTENCY OVERRIDES ====================
+# If set (True/False), this enables or disables the album date consistency check phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_ALBUM_DATE_CONSISTENCY: bool | None = None

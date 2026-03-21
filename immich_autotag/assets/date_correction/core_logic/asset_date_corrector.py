@@ -65,7 +65,7 @@ class AssetDateCorrector(ProcessStepResult):
             DateCorrectionStepResult indicating the outcome of the correction attempt.
         """
 
-        wrappers = self._asset_wrapper.get_all_duplicate_wrappers(include_self=False)
+        wrappers = self._asset_wrapper.get_all_duplicate_wrappers(include_self=True)
         if wrappers.is_empty():
             return DateCorrectionStepResult.EXIT  # No duplicates, nothing to correct
         self._date_sources_list = AssetDateSourcesList.from_wrappers(

@@ -6,7 +6,7 @@ from typeguard import typechecked
 from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
 from immich_autotag.assets.date_correction.date_source_kind import DateSourceKind
 from immich_autotag.logging.levels import LogLevel
-from immich_autotag.logging.utils import log
+from immich_autotag.logging.utils import is_log_level_enabled, log
 from immich_autotag.utils.date_compare import is_datetime_more_than_days_after
 
 from ..asset_date_sources_list import AssetDateSourcesList
@@ -67,7 +67,8 @@ def check_filename_candidate_and_fix(
     # Case 1: large day difference (as before)
     if is_datetime_more_than_days_after(immich_date, candidate_date, days=1.1):
         log("[DATE CORRECTION][COMPLETE DIAGNOSIS]", level=LogLevel.FOCUS)
-        log(date_sources_list.format_full_info(), level=LogLevel.FOCUS)
+        if is_log_level_enabled(LogLevel.FOCUS):
+            log(date_sources_list.format_full_info(), level=LogLevel.FOCUS)
         log("[DATE CORRECTION][SELECTED CANDIDATE]", level=LogLevel.FOCUS)
         log(best_candidate.format_info(), level=LogLevel.FOCUS)
         log(
@@ -83,7 +84,8 @@ def check_filename_candidate_and_fix(
     # Case 2: same date, Immich at midnight, candidate has real time and is older
     if candidate_has_time and candidate_date < immich_date:
         log("[DATE CORRECTION][TIME PRECISION]", level=LogLevel.FOCUS)
-        log(date_sources_list.format_full_info(), level=LogLevel.FOCUS)
+        if is_log_level_enabled(LogLevel.FOCUS):
+            log(date_sources_list.format_full_info(), level=LogLevel.FOCUS)
         log("[DATE CORRECTION][SELECTED CANDIDATE]", level=LogLevel.FOCUS)
         log(best_candidate.format_info(), level=LogLevel.FOCUS)
         log(
