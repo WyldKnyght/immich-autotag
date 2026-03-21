@@ -46,7 +46,7 @@ def process_assets_sequential(
     count = 0
     albums_collection = context.get_albums_collection()
     # Prepare and cache the asset-to-albums map and cleanup once before the loop
-    albums_collection.prepare_batch_asset_to_albums_map()
+    _prepared_asset_map = albums_collection.prepare_batch_asset_to_albums_map()
     try:
 
         for asset_wrapper in context.get_asset_manager().iter_assets(

@@ -78,7 +78,7 @@ FORCE_MAX_ITEMS_TO_PROCESS: int | None = None  # Limit for fast performance test
 # If set, this asset UUID will be injected as a filter override in user config (for testing/dev convenience).
 # Example: "4cc4171f-f8a5-47eb-bbc1-a4834cc51bce"
 
-FILTER_OVERRIDE_ASSET_UUID: str | None = "http://immich.ad3.lab:2283/albums/28d6b021-402d-4c8c-b45d-df94463e767a/photos/5b73f4e5-81df-45b0-b671-c644b3f66f63"
+FILTER_OVERRIDE_ASSET_UUID: str | None = None
 
 # ==================== ERROR HANDLING OVERRIDES ====================
 # If set (True/False), this will override user config's fail_fast_on_asset_errors.
@@ -92,3 +92,23 @@ FORCE_FAIL_FAST_ON_ASSET_ERRORS: bool | None = False
 # Set to False to disable inferring/creating albums from containing folders
 # across development, CI, and normal runs without touching user config files.
 FORCE_ENABLE_ALBUM_DETECTION_FROM_FOLDERS: bool | None = False
+
+# ==================== ALBUM ASSIGNMENT OVERRIDES ====================
+# If set (True/False), this enables or disables the album assignment phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_ALBUM_ASSIGNMENT: bool | None = None
+
+# ==================== CLASSIFICATION VALIDATION OVERRIDES ====================
+# If set (True/False), this enables or disables the classification validation phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_CLASSIFICATION_VALIDATION: bool | None = None
+
+# ==================== DUPLICATE TAG ANALYSIS OVERRIDES ====================
+# If set (True/False), this enables or disables duplicate classification tag analysis.
+# If None, normal processing flow is used.
+FORCE_ENABLE_DUPLICATE_TAG_ANALYSIS: bool | None = None
+
+# ==================== ALBUM DATE CONSISTENCY OVERRIDES ====================
+# If set (True/False), this enables or disables the album date consistency check phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_ALBUM_DATE_CONSISTENCY: bool | None = None

@@ -10,6 +10,7 @@ from immich_autotag.assets.classification_validation_result import (
     ClassificationValidationResult,
 )
 from immich_autotag.assets.consistency_checks._album_date_consistency import (
+    AlbumDateConsistencyResult,
     check_album_date_consistency,
 )
 from immich_autotag.assets.date_correction.core_logic import (
@@ -71,10 +72,74 @@ def _correct_date_if_enabled(
 @typechecked
 def _analyze_duplicate_tags(
     asset_wrapper: AssetResponseWrapper,
-) -> DuplicateTagAnalysisReport:
+) -> DuplicateTagAnalysisReport | None:
     """Analyze duplicate classification tags for the asset."""
+    from immich_autotag.config.internal_config import (
+        FORCE_ENABLE_DUPLICATE_TAG_ANALYSIS,
+    )
+
+    if FORCE_ENABLE_DUPLICATE_TAG_ANALYSIS is False:
+        log(
+            "[DEBUG] Duplicate tag analysis disabled by internal config; skipping.",
+            level=LogLevel.FOCUS,
+        )
+        return None
+
     log("[DEBUG] Analyzing duplicate classification tags...", level=LogLevel.FOCUS)
     return analyze_duplicate_classification_tags(asset_wrapper)
+
+
+@typechecked
+def _assign_album_if_enabled(
+    asset_wrapper: AssetResponseWrapper,
+    tag_mod_report: ModificationReport,
+) -> AlbumAssignmentReport | None:
+    """Run album assignment unless disabled in internal config."""
+    from immich_autotag.config.internal_config import FORCE_ENABLE_ALBUM_ASSIGNMENT
+
+    if FORCE_ENABLE_ALBUM_ASSIGNMENT is False:
+        log(
+            "[DEBUG] Album assignment disabled by internal config; skipping.",
+            level=LogLevel.FOCUS,
+        )
+        return None
+
+    return AlbumAssignmentReport.analyze(asset_wrapper, tag_mod_report)
+
+
+@typechecked
+def _validate_classification_if_enabled(
+    asset_wrapper: AssetResponseWrapper,
+) -> ClassificationValidationResult | None:
+    """Run classification validation unless disabled in internal config."""
+    from immich_autotag.config.internal_config import FORCE_ENABLE_CLASSIFICATION_VALIDATION
+
+    if FORCE_ENABLE_CLASSIFICATION_VALIDATION is False:
+        log(
+            "[DEBUG] Classification validation disabled by internal config; skipping.",
+            level=LogLevel.FOCUS,
+        )
+        return None
+
+    return asset_wrapper.validate_and_update_classification()
+
+
+@typechecked
+def _check_album_date_consistency_if_enabled(
+    asset_wrapper: AssetResponseWrapper,
+    tag_mod_report: ModificationReport,
+) -> AlbumDateConsistencyResult | None:
+    """Run album date consistency check unless disabled in internal config."""
+    from immich_autotag.config.internal_config import FORCE_ENABLE_ALBUM_DATE_CONSISTENCY
+
+    if FORCE_ENABLE_ALBUM_DATE_CONSISTENCY is False:
+        log(
+            "[DEBUG] Album date consistency check disabled by internal config; skipping.",
+            level=LogLevel.FOCUS,
+        )
+        return None
+
+    return check_album_date_consistency(asset_wrapper, tag_mod_report)
 
 
 @typechecked
@@ -115,17 +180,16 @@ def process_single_asset(
 
     report.add_result(result_03_duplicate_tag_analysis)
     tag_mod_report = ModificationReport.get_instance()
-    result_04_album_assignment = AlbumAssignmentReport.analyze(
-        asset_wrapper, tag_mod_report
+    result_04_album_assignment = _assign_album_if_enabled(
+        asset_wrapper,
+        tag_mod_report,
     )
     report.add_result(result_04_album_assignment)
 
-    result_05_validation: ClassificationValidationResult = (
-        asset_wrapper.validate_and_update_classification()
-    )
+    result_05_validation = _validate_classification_if_enabled(asset_wrapper)
     report.add_result(result_05_validation)
 
-    result_06_album_date_consistency = check_album_date_consistency(
+    result_06_album_date_consistency = _check_album_date_consistency_if_enabled(
         asset_wrapper, tag_mod_report
     )
     report.add_result(result_06_album_date_consistency)
