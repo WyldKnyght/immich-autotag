@@ -67,10 +67,12 @@ skip = [".venv", "immich-client", "scripts"]
 
 [tool.ruff]
 # Ruff configuration: keep defaults minimal here; CI can add stricter rules.
-extend-select = ["E", "F", "W"]
 line-length = 88
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint]
+extend-select = ["E", "F", "W"]
+
+[tool.ruff.lint.per-file-ignores]
 "immich_autotag/entrypoints/main_entrypoint.py" = ["E402"]
 
 [project.optional-dependencies]

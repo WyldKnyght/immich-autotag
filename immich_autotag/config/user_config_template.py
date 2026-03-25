@@ -28,6 +28,9 @@ from immich_autotag.config.models import (
     UserGroup,
 )
 
+# Utilities for documentation links based on the running version/commit
+from immich_autotag.utils.links.github import github_doc_url
+
 # Private module-level constants for repeated tag/album/group names
 
 # AUTOTAG CLASSIFICATION RULES INPUT STRINGS
@@ -87,9 +90,8 @@ user_config = UserConfig(
         "Each attribute is documented inline with comments explaining its purpose and selection rationale. "
         "For the most authoritative and up-to-date documentation of the configuration classes and their fields, "
         "please refer to the source code: "
-        "https://github.com/txemi/immich-autotag/blob/main/immich_autotag/config/models.py\n"
-        "Note: The above link points to the 'main' branch. If you are running a different branch, please adapt the URL "
-        "to match your current branch for accurate reference."
+        f"{github_doc_url('immich_autotag/config/models.py')}\n"
+        "Note: The link above points to the exact version/commit you are running."
     ),
     # -------------------------------------------------------------------------
     # API and connection: Immich access credentials
@@ -102,8 +104,8 @@ user_config = UserConfig(
     enable_album_name_strip=True,  # Trim spaces in album names
     skip=SkipConfig(skip_n=0, resume_previous=True),  # Resume from last processed asset
     # -------------------------------------------------------------------------
-    # ASSET FILTER: Global filter assets by tag, album name pattern or ID. Inclussion or exclusion.
-    filters=FilterConfig(filter_in=[ClassificationRule(asset_links=[])]),
+    # ASSET FILTER: Global filter for assets by tag, album name pattern or ID. Inclusion or exclusion.
+    filters=FilterConfig(),
     # -------------------------------------------------------------------------
     # TAG CONVERSIONS: mapping of old tags or albums to new ones (compatibility/refactor)
     conversions=ConversionConfig(
