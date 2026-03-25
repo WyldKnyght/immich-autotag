@@ -10,8 +10,6 @@ from typing import Optional
 
 from typeguard import typechecked
 
-from immich_autotag.config._internal_types import ErrorHandlingMode
-from immich_autotag.config.internal_config import DEFAULT_ERROR_MODE
 from immich_autotag.run_output.manager import RunOutputManager
 from immich_autotag.statistics.run_statistics import RunStatistics
 
@@ -69,11 +67,6 @@ def get_previous_skip_n(
     If use_recent_max is True, searches for the maximum of the last hours.
     Returns None if there is no data.
     """
-    # If we are in DEVELOPMENT mode, force use of recent maximum and extend
-    # threshold to 48h
-    if DEFAULT_ERROR_MODE == ErrorHandlingMode.DEVELOPMENT:
-        use_recent_max = True
-        hours = 48
 
     if use_recent_max:
         result = _find_recent_max_count(overlap, hours)

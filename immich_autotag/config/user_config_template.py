@@ -269,7 +269,7 @@ user_config = UserConfig(
             "This feature attempts to assign or even create an album based on the folder path where an asset is stored in the library. "
             "It allows exclusions for folders that should not be used for this purpose, such as WhatsApp backups."
         ),
-        enabled=True,  # Create albums from folders (disabled)
+        enabled=False,  # Create albums from folders (disabled)
         excluded_paths=[r"whatsapp"],  # Exclude folders by pattern
     ),
     create_album_from_date_if_missing=True,  # Enables creation of generic daily albums for unclassified assets, you can rename or modify them later

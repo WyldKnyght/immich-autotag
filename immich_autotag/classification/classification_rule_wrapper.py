@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from immich_autotag.classification.match_result import MatchResult
 
-from immich_autotag.config._internal_types import ErrorHandlingMode
+from immich_autotag.config.dev_mode import is_crazy_debug_mode
 from immich_autotag.config.internal_config import DEFAULT_ERROR_MODE
 
 if TYPE_CHECKING:
@@ -108,7 +108,7 @@ class ClassificationRuleWrapper:
 
         log(f"DEFAULT_ERROR_MODE: {DEFAULT_ERROR_MODE}", level=LogLevel.TRACE)
 
-        if DEFAULT_ERROR_MODE == ErrorHandlingMode.CRAZY_DEBUG:
+        if is_crazy_debug_mode():
             asset_id = asset_wrapper.get_id()
             asset_url = asset_wrapper.get_immich_photo_url().geturl()
             from immich_autotag.logging.levels import LogLevel

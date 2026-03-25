@@ -268,7 +268,7 @@ class PerformanceConfig(BaseModel):
         description="Enable @typechecked runtime type validation. Disable in production for ~50% performance improvement.",
     )
     fail_fast_on_asset_errors: bool = Field(
-        default=True,
+        default=False,
         description="If True, abort execution on first fatal asset processing error. If False, log error and continue to next asset.",
     )
 
