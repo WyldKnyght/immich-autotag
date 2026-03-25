@@ -103,15 +103,11 @@ class AssetToAlbumsMap(MutableMapping[AssetUUID, AlbumList]):
             return temp
         else:
             # Crazy debug mode: if the uuid is the special one and not present, raise exception
-            from immich_autotag.config.dev_mode import is_crazy_debug_mode
 
             uuid_to_check_str = "68fc28c1-8f35-418c-9314-72578c8c4687"
-            uuid_to_check = AssetUUID(uuid_to_check_str)
-            if is_crazy_debug_mode() and asset_uuid == uuid_to_check:
-                raise RuntimeError(
-                    f"[CRAZY DEV MODE] Asset-to-albums map does not contain the required UUID when queried: {uuid_to_check_str}"
-                )
-            return AlbumList()
+            raise RuntimeError(
+                f"[CRAZY DEV MODE] Asset-to-albums map does not contain the required UUID when queried: {uuid_to_check_str}"
+            )
 
     def __getitem__(self, key: AssetUUID) -> AlbumList:
         if not isinstance(key, AssetUUID):

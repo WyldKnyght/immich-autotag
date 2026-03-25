@@ -74,13 +74,8 @@ class PerformanceTracker:
                 "Cannot initialize the tracker."
             )
         # --- CRAZY CONDITION IN CONSTRUCTOR ---
-        from immich_autotag.config.dev_mode import is_crazy_debug_mode
 
-        if (
-            is_crazy_debug_mode()
-            and self._total_assets is not None
-            and self._total_assets < 1000
-        ):
+        if self._total_assets is not None and self._total_assets < 1000:
             raise Exception(
                 "CRAZY_DEBUG mode: total_assets too low (<100000) during "
                 "PerformanceTracker initialization"
@@ -285,9 +280,8 @@ class PerformanceTracker:
         # --- CRAZY CONDITION ---
         # If mode is CRAZY_DEBUG, abs_total is not None and abs_total < 200000,
         # raise exception
-        from immich_autotag.config.dev_mode import is_crazy_debug_mode
 
-        if is_crazy_debug_mode() and abs_total is not None and abs_total < 1000:
+        if abs_total is not None and abs_total < 1000:
             raise Exception("CRAZY_DEBUG mode: abs_total too low (<200000)")
 
         est_remaining_session = self._printable_value_est_remaining_session(
