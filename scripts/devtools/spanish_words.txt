@@ -80,7 +80,9 @@ pueden
 referencia
 reglas
 requerido
+revisar
 salida
+seguridad
 seguro
 sencillo
 si
