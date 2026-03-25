@@ -62,15 +62,7 @@ class AssetMapManager:
 
         for idx, album_wrapper in enumerate(albums, 1):
             # Crazy debug: if the album has the special UUID, raise exception
-            from immich_autotag.config.dev_mode import is_crazy_debug_mode
 
-            uuid_to_check_str = "68fc28c1-8f35-418c-9314-72578c8c4687"
-            if is_crazy_debug_mode():
-                if str(album_wrapper.get_album_uuid()) == uuid_to_check_str:
-                    log(
-                        f"[CRAZY DEV MODE] Processing album with special UUID: {uuid_to_check_str}",
-                        LogLevel.WARNING,
-                    )
             if album_wrapper.is_empty():
                 from immich_autotag.logging.levels import LogLevel
                 from immich_autotag.logging.utils import log
@@ -121,20 +113,7 @@ class AssetMapManager:
 
         self._asset_to_albums_map = asset_map
         # Crazy development mode: check for specific UUID in map
-        from immich_autotag.config.dev_mode import is_crazy_debug_mode
 
-        if is_crazy_debug_mode():
-            uuid_to_check_str = "68fc28c1-8f35-418c-9314-72578c8c4687"
-            from immich_autotag.logging.levels import LogLevel
-            from immich_autotag.logging.utils import log
-            from immich_autotag.types.uuid_wrappers import AssetUUID
-
-            uuid_to_check = AssetUUID(uuid_to_check_str)
-            if uuid_to_check not in asset_map:
-                log(
-                    f"[CRAZY DEV MODE][WARNING] Asset-to-albums map does not contain the required UUID: {uuid_to_check_str}",
-                    level=LogLevel.WARNING,
-                )
         self._is_map_loaded = True
         return asset_map
 
