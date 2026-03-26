@@ -22,6 +22,7 @@ filters:
   filter_in: []
   filter_out: []
 conversions:
+  enabled: true
   description: These conversions are configured for a specific test case. I am experimenting
     with this functionality using conversions that are useful for propagating, converting,
     copying, or transforming tags or albums into others. This allows testing different
@@ -119,6 +120,7 @@ classification:
     album_name_patterns:
     - ^autotag_input_pending_review$
     asset_links: null
+    description: 'Pending review: assets that require a destination decision.'
   - tag_names:
     - autotag_input_ignore
     album_name_patterns:
@@ -126,9 +128,9 @@ classification:
     asset_links: null
     description: 'Ignore: photos discarded from the main flow.'
   - tag_names:
-    - autotag_output_broken
+    - autotag_input_broken
     album_name_patterns:
-    - ^autotag_output_broken$
+    - ^autotag_input_broken$
     asset_links: null
     description: 'Broken assets: photos detected as broken/corrupted during processing.
       We prefer to separate them in a classification so they do not clutter albums
@@ -162,17 +164,18 @@ album_detection_from_folders:
   description: This feature attempts to assign or even create an album based on the
     folder path where an asset is stored in the library. It allows exclusions for
     folders that should not be used for this purpose, such as WhatsApp backups.
-  enabled: true
+  enabled: false
   excluded_paths:
   - whatsapp
 performance:
   description: null
   enable_type_checking: true
+  fail_fast_on_asset_errors: false
 album_permissions:
   description: If enabled, this feature allows you to assign album permissions to
     users in batch by defining groups and rules. Doing this manually would be extremely
     tedious.
-  enabled: false
+  enabled: true
   user_groups:
   - name: family
     description: Family members
