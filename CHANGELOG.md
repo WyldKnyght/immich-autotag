@@ -539,7 +539,7 @@ Run full integration tests on current codebase (feat/album-permission-groups + m
 - All previous Quality Gate requirements still pass with architecture enforcement active.
 
 
-## [0.80.0]
+## [0.80.0] - 2026-03-26
 **Description:** User permissions and user groups. Improvements to the rule engine: more abstract, supports not only regex but also simplified common use cases. New album-management safeguards, configurable execution phases, and API/proxy architecture consolidation.
 ### Added
 - Automatic assignment of permissions to users according to rules.
