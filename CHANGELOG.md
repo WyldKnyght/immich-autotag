@@ -540,23 +540,23 @@ Run full integration tests on current codebase (feat/album-permission-groups + m
 
 
 ## [0.80.0] - 2026-03-26
-**Description:** User permissions and user groups. Improvements to the rule engine: more abstract, supports not only regex but also simplified common use cases. New album-management safeguards, configurable execution phases, and API/proxy architecture consolidation.
+**Status:** 🎯 **Major Release Milestone** — Stabilization roadmap established
+**Description:** User permissions and user groups, improved rule engine supporting both regex and simplified patterns, and major album-management safeguards. This release consolidates significant architectural improvements and marks the beginning of our stabilization phase toward v1.0.0
+
 ### Added
-- Automatic assignment of permissions to users according to rules.
-- Creation and management of user groups for advanced access control.
-- Automatic creation of user permissions and user groups based on the rule engine.
-- Duplicate album-name recovery flow with cleanup and rename strategies to resolve same-name conflicts more safely.
-- New internal execution toggles to enable/disable key phases independently (album assignment, classification validation, duplicate-tag analysis, album-date consistency, and tag conversions).
-- Maintenance support for unhealthy temporary album cleanup and improved traceability for album permission synchronization (including member emails in logs).
-- Improvements to the rule engine: more abstract, supports not only regex but also simplified common use cases. 
+- **User Permissions & Groups:** Automatic assignment of permissions to users according to rules; creation and management of user groups for advanced access control; complete synchronization system (Phase 1 & Phase 2 from v0.72–v0.73 now consolidated and stable).
+- **Duplicate Album-Name Recovery:** Flow with cleanup and rename strategies to resolve same-name conflicts more safely.
+- **Configurable Execution Phases:** New internal execution toggles to enable/disable key phases independently (album assignment, classification validation, duplicate-tag analysis, album-date consistency, and tag conversions).
+- **Enhanced Rule Engine:** Improved abstraction supporting both regex patterns and simplified common use cases for flexible classification.
+- **Maintenance Features:** Support for unhealthy temporary album cleanup and improved traceability for album permission synchronization (including member emails in logs). 
 ### Changed
-- API proxy and logging proxy layers were reorganized into modular entrypoints (albums/assets/tags/users/server) to improve architectural boundaries and maintainability.
-- Album/asset relationship handling was reworked with dedicated managers (asset map, unavailable albums, duplicate albums, temporary albums) for clearer state handling and resilience.
-- Cache behavior was aligned with internal cache flags: when API cache is disabled, cache files are no longer read nor written.
-- The internal categorization flow has been adapted to fully leverage the new configuration system introduced in v0.25, enabling more versatile categorizations based on multiple tags and flexible album patterns. ([issue](docs/issues/0009-config-system-refactor/))
-- Consolidation of experimental features from version 0.20:
-  - Resume processing from the last processed asset (checkpoint resume) is now stable and enabled by default. ([issue](docs/issues/0008-statistics-checkpoint/))
-  - Creation and assignment of albums based on folders from the file system library is now stable and enabled by default. ([issue](docs/issues/0004-album-detection/)) 
+- **API Architecture Refactor:** API proxy and logging proxy layers reorganized into modular entrypoints (albums/assets/tags/users/server) for improved architectural boundaries and maintainability.
+- **Album/Asset Management:** Relationship handling reworked with dedicated managers (asset map, unavailable albums, duplicate albums, temporary albums) for clearer state handling and resilience.
+- **Cache Behavior:** Aligned with internal cache flags—when API cache is disabled, cache files are no longer read nor written.
+- **Configuration System Leverage:** Internal categorization flow adapted to fully utilize the configuration system from v0.25, enabling versatile categorizations based on multiple tags and flexible album patterns. ([issue](docs/issues/0009-config-system-refactor/))
+- **Feature Stabilization:** Experimental features from v0.20 now production-ready:
+  - Checkpoint resume (resume processing from last processed asset) is now stable and enabled by default. ([issue](docs/issues/0008-statistics-checkpoint/))
+  - Automatic album creation/assignment from file system library folders is now stable and enabled by default. ([issue](docs/issues/0004-album-detection/)) 
 ### Fixed
 - Added dedicated error handling for asset-removal API failures to improve recovery behavior and diagnostics.
 - Improved duplicate-album conflict handling in album workflows, including conflict detection and safer rename paths.
