@@ -530,6 +530,38 @@ Run full integration tests on current codebase (feat/album-permission-groups + m
 - Addressed a prioritized subset of Sonar-style findings: high-priority security warnings and stability-related code smells reduced through targeted fixes and tests.
 
 
+
+
+# [0.74.6] - 2026-02-03
+**Description:** Quality Gate milestone with architecture import hook enforcement enabled (internal).
+### Changed
+- Architecture import hook is now forcibly enabled for all runs in this branch.
+- All previous Quality Gate requirements still pass with architecture enforcement active.
+
+
+## [0.80.0]
+**Description:** User permissions and user groups. Improvements to the rule engine: more abstract, supports not only regex but also simplified common use cases. New album-management safeguards, configurable execution phases, and API/proxy architecture consolidation.
+### Added
+- Automatic assignment of permissions to users according to rules.
+- Creation and management of user groups for advanced access control.
+- Automatic creation of user permissions and user groups based on the rule engine.
+- Duplicate album-name recovery flow with cleanup and rename strategies to resolve same-name conflicts more safely.
+- New internal execution toggles to enable/disable key phases independently (album assignment, classification validation, duplicate-tag analysis, album-date consistency, and tag conversions).
+- Maintenance support for unhealthy temporary album cleanup and improved traceability for album permission synchronization (including member emails in logs).
+- Improvements to the rule engine: more abstract, supports not only regex but also simplified common use cases. 
+### Changed
+- API proxy and logging proxy layers were reorganized into modular entrypoints (albums/assets/tags/users/server) to improve architectural boundaries and maintainability.
+- Album/asset relationship handling was reworked with dedicated managers (asset map, unavailable albums, duplicate albums, temporary albums) for clearer state handling and resilience.
+- Cache behavior was aligned with internal cache flags: when API cache is disabled, cache files are no longer read nor written.
+- The internal categorization flow has been adapted to fully leverage the new configuration system introduced in v0.25, enabling more versatile categorizations based on multiple tags and flexible album patterns. ([issue](docs/issues/0009-config-system-refactor/))
+- Consolidation of experimental features from version 0.20:
+  - Resume processing from the last processed asset (checkpoint resume) is now stable and enabled by default. ([issue](docs/issues/0008-statistics-checkpoint/))
+  - Creation and assignment of albums based on folders from the file system library is now stable and enabled by default. ([issue](docs/issues/0004-album-detection/)) 
+### Fixed
+- Added dedicated error handling for asset-removal API failures to improve recovery behavior and diagnostics.
+- Improved duplicate-album conflict handling in album workflows, including conflict detection and safer rename paths.
+
+
 ## [Planned: Date Correction Improvements]
 **Description:** Planned improvements to date correction logic for edge cases and scenarios not currently handled correctly.
 ### Added
@@ -540,28 +572,7 @@ Run full integration tests on current codebase (feat/album-permission-groups + m
 ### Added
 - Refactored logic for automatic album creation, improving detection and assignment.
 
-# [0.74.6] - 2026-02-03
-**Description:** Quality Gate milestone with architecture import hook enforcement enabled (internal).
-### Changed
-- Architecture import hook is now forcibly enabled for all runs in this branch.
-- All previous Quality Gate requirements still pass with architecture enforcement active.
 
-
-## [Unreleased]
-**Description:** Improvements to the rule engine: more abstract, supports not only regex but also simplified common use cases.
-### Added
-
-- The internal categorization flow has been adapted to fully leverage the new configuration system introduced in v0.25, enabling more versatile categorizations based on multiple tags and flexible album patterns. ([issue](docs/issues/0009-config-system-refactor/))
-- Consolidation of experimental features from version 0.20:
-  - Resume processing from the last processed asset (checkpoint resume) is now stable and enabled by default. ([issue](docs/issues/0008-statistics-checkpoint/))
-  - Creation and assignment of albums based on folders from the file system library is now stable and enabled by default. ([issue](docs/issues/0004-album-detection/))
-
-
-## [Planned]
-**Description:** Automatic creation of user permissions and user groups based on the rule engine.
-### Added
-- Automatic assignment of permissions to users according to rules.
-- Creation and management of user groups for advanced access control.
 
 ## [1.0] - YYYY-MM-DD
 ### Added
