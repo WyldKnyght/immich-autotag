@@ -13,7 +13,7 @@ Master checklist for final release preparation tasks. This covers all the items 
 - [x] **Stability testing with incremental asset volumes** ([see subtask 002](subtasks/002-stability-testing-incremental-volumes/))
 - [x] Review that the configuration is documented
 - [?] Review the internal configuration (ensure we are not in debug mode)
-- deshabilitar no solo usar cache sino escribirla
+- [x]deshabilitar no solo usar cache sino escribirla
 - [ ] Review the general documentation
 - [ ] Update the CHANGELOG.md
 - [ ] Review release workflow security in GitHub Actions ([see subtask 001](subtasks/001-github-actions-release-safety/))
