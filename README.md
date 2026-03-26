@@ -7,11 +7,11 @@ Immich AutoTag is a rule engine designed to apply batch changes to Immich assets
 ## 1.2. Motivation
 
 
-### 1.2.2. Why Immich?
+### 1.2.1. Why Immich?
 
 In recent years, [Immich](https://immich.app) has become one of the most popular solutions for private photo and video management, surpassing alternatives like Google Photos or NAS applications. External services such as Google Photos may lose features, delete data (e.g., face information), impose quotas, or reduce photo quality. NAS apps often perform poorly when run on typical home hardware, which is usually less powerful than professional setups. Immich stands out for being open-source (free software), fast, private, and having an active community, making it the preferred choice for many users.
 
-### 1.2.3. Why this project?
+### 1.2.2. Why this project?
 
 When starting to use Immich, it is common to import large volumes of photos from older systems, where organization was done in folders or with other apps. This creates a challenge: many photos and videos remain unorganized or misclassified. Although Immich is powerful, manual classification can be slow and tedious. This project aims to make organization faster and easier through automatic rules and tagging.
 
