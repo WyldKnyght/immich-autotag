@@ -45,6 +45,8 @@ It helps to:
 
 > For more details and upcoming features, see the [Roadmap](./ROADMAP.md) and [Changelog](./CHANGELOG.md).
 
+DISCLAIMER: Lot of features added recently, if you find some bug you can report it at: https://github.com/txemi/immich-autotag/issues
+
 ## 1.4. Quick Start
 
 To get started quickly:
@@ -60,9 +62,27 @@ To get started quickly:
 
 You can run Immich AutoTag using any of the following methods:
 
+**A. With pipx (no code download required)**
 
-**A. With Docker (recommended for most users)**
+  - If you have pipx installed:
+    ```bash
+    pipx run immich-autotag
+    ```
 
+  - You can also use the provided scripts:
+    - Run once:
+      ```bash
+      bash scripts/pypi/run_immich_autotag.sh
+      ```
+    - Run in a loop (for continuous tagging/classification):
+      ```bash
+      bash scripts/pypi/loop_immich_autotag.sh
+      ```
+
+**B. With Docker (recommended for most users)**
+
+  DISCLAIMER: python configuration is not working with docker yet. You could use yamel configuration.
+  
   - **One-shot execution (run once):**
     - Using the public image:
       ```bash
@@ -129,22 +149,7 @@ You can run Immich AutoTag using any of the following methods:
           (Recommended: all main actions have scripts for reproducibility and reference.)
         - All logs and statistics will be available in the `logs_docker_cron` folder on your host machine.
 
-**B. With pipx (no code download required)**
 
-  - If you have pipx installed:
-    ```bash
-    pipx run immich-autotag
-    ```
-
-  - You can also use the provided scripts:
-    - Run once:
-      ```bash
-      bash scripts/pypi/run_immich_autotag.sh
-      ```
-    - Run in a loop (for continuous tagging/classification):
-      ```bash
-      bash scripts/pypi/loop_immich_autotag.sh
-      ```
 
 
 
