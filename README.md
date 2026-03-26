@@ -233,7 +233,7 @@ You can define also special tags or albums for photos that do not belong to any 
 
 [example quick links above](#121-reviewing-results-example-links) 
 
-  - If you enabled automatic album creation, start by visiting the Albums view (see the link at the top of this document). Do not group by year, sort by number of assets, and filter by autotag. This will show you the largest automatically created albums first.
+  - If you enabled automatic album creation, start by visiting the Albums view (see the link at the top of this document). Do not group by year, sort by number of assets, and filter by autotag. This will show you the largest automatically created albums first. If thumbnail loading is slow, switch to list view.
     - For each album, you can choose to rename and keep it, delete it if not needed, or modify its contents to better fit your organization.
     - Once you are satisfied with your albums, move to the next review step.
   - Next, use the provided links to review assets that are unclassified or in conflict. These links let you quickly find and address assets that need attention.
