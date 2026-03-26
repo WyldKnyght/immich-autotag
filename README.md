@@ -45,7 +45,7 @@ It helps to:
 
 > For more details and upcoming features, see the [Roadmap](./ROADMAP.md) and [Changelog](./CHANGELOG.md).
 
-DISCLAIMER: Lot of features added recently, if you find some bug you can report it at: https://github.com/txemi/immich-autotag/issues
+DISCLAIMER: A lot of features have been added recently. If you find a bug, please report it at: https://github.com/txemi/immich-autotag/issues
 
 ## 1.4. Quick Start
 
@@ -81,8 +81,6 @@ You can run Immich AutoTag using any of the following methods:
 
 **B. With Docker (recommended for most users)**
 
-  DISCLAIMER: python configuration is not working with docker yet. You could use yamel configuration.
-  
   - **One-shot execution (run once):**
     - Using the public image:
       ```bash
