@@ -43,7 +43,7 @@ dependencies = [
 include = ["immich_autotag*", "immich_client*"]
 
 [project.scripts]
-immich-autotag = "immich_autotag.entrypoint:run_main"
+immich-autotag = "immich_autotag.main_entrypoint:run_main"
 
 # ---- Formatting tools configuration ----
 # These sections ensure consistent formatting across all environments and contributors.
