@@ -1,7 +1,19 @@
+from typing import TYPE_CHECKING
+
 import attrs
 from typeguard import typechecked
 
-from immich_autotag.config.models import Conversion
+from immich_autotag.classification.classification_rule_wrapper import (
+    ClassificationRuleWrapper,
+)
+
+# Error handling mode import
+from immich_autotag.config.models import Conversion, ConversionMode
+from immich_autotag.conversions.destination_wrapper import DestinationWrapper
+from immich_autotag.report.modification_entries_list import ModificationEntriesList
+
+if TYPE_CHECKING:
+    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
 
 
 @attrs.define(auto_attribs=True, slots=True, frozen=True, eq=True)
@@ -24,15 +36,38 @@ class ConversionWrapper:
 
     @typechecked
     def destination_album_patterns(self) -> list[str]:
-        return self.conversion.destination.album_name_patterns or []
+        return self.conversion.destination.album_names or []
 
-    # You can add more utility methods as needed
     @typechecked
-    def get_single_origin_tag(self) -> str:
-        tags = self.source_tags()
-        album_patterns = self.source_album_patterns()
-        if len(tags) == 1 and not album_patterns:
-            return tags[0]
-        raise NotImplementedError(
-            "Only single-tag origin conversions without album origin are implemented."
-        )
+    def get_source_wrapper(self) -> ClassificationRuleWrapper:
+        """Returns a ClassificationRuleWrapper for the conversion source."""
+        return ClassificationRuleWrapper(self.conversion.source)
+
+    @typechecked
+    def get_destination_wrapper(self) -> DestinationWrapper:
+        """Returns a DestinationWrapper for the conversion destination."""
+        return DestinationWrapper(self.conversion.destination)
+
+    @typechecked
+    def apply_to_asset(
+        self, asset_wrapper: "AssetResponseWrapper"
+    ) -> ModificationEntriesList:
+        """
+        Applies the conversion on the asset_wrapper.
+        Uses the source wrapper to check for a match and the destination wrapper to apply the action.
+        Removes source tags/albums only if the conversion mode is MOVE.
+        Returns ModificationEntriesList containing all modifications created during the operation.
+        """
+        match_result = self.get_source_wrapper().matches_asset(asset_wrapper)
+        source_matched = match_result is not None and match_result.is_match()
+        changes = ModificationEntriesList()
+        if source_matched:
+            # Applies the destination action (add tags, albums, etc.)
+            result_action = self.get_destination_wrapper()
+            changes = changes.extend(result_action.apply_action(asset_wrapper))
+            # Depending on the conversion mode, removes the source tags/albums
+            if self.conversion.mode == ConversionMode.MOVE and match_result is not None:
+                # Note: remove_matches still returns list[str], but that's being updated separately
+                # For now, we just skip those entries since they're info messages
+                self.get_source_wrapper().remove_matches(asset_wrapper, match_result)
+        return changes

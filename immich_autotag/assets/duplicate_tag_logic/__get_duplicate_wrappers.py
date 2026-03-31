@@ -1,10 +1,3 @@
-from typing import TYPE_CHECKING, List
-
-from typeguard import typechecked
-
-if TYPE_CHECKING:
-    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
-
 from typeguard import typechecked
 
 from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
@@ -17,7 +10,14 @@ def get_duplicate_wrappers(
     """
     Returns the list of duplicate AssetResponseWrapper for the given asset.
     """
-    context = asset_wrapper.context
-    return context.duplicates_collection.get_duplicate_asset_wrappers(
-        asset_wrapper.duplicate_id_as_uuid, context.asset_manager, context
+    context = asset_wrapper.get_context()
+    from immich_autotag.types.uuid_wrappers import DuplicateUUID
+
+    duplicate_id_or_none = asset_wrapper.get_duplicate_id_as_uuid()
+    if duplicate_id_or_none is None:
+        return []
+    duplicate_id: DuplicateUUID = duplicate_id_or_none
+
+    return context.get_duplicates_collection().get_duplicate_asset_wrappers(
+        duplicate_id, context.get_asset_manager(), context
     )

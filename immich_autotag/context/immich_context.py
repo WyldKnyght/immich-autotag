@@ -3,29 +3,105 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import attrs
-from immich_client import Client
+from typeguard import typechecked
+
+from immich_autotag.context.immich_client_wrapper import ImmichClientWrapper
 
 if TYPE_CHECKING:
-    from immich_autotag.albums.album_collection_wrapper import AlbumCollectionWrapper
+    from immich_autotag.albums.albums.album_collection_wrapper import (
+        AlbumCollectionWrapper,
+    )
     from immich_autotag.assets.asset_manager import AssetManager
     from immich_autotag.duplicates.duplicate_collection_wrapper import (
         DuplicateCollectionWrapper,
     )
+    from immich_autotag.run_output.execution import RunExecution
     from immich_autotag.tags.tag_collection_wrapper import TagCollectionWrapper
 
+_instance: "ImmichContext | None" = None
 
-@attrs.define(auto_attribs=True, slots=True, frozen=True)
+
+@attrs.define(auto_attribs=True, slots=True)
 class ImmichContext:
-    client: Client = attrs.field(validator=attrs.validators.instance_of(Client))
-    albums_collection: "AlbumCollectionWrapper" = attrs.field(
-        validator=attrs.validators.instance_of(object)
+    _client: "ImmichClientWrapper | None" = attrs.field(default=None)
+    _albums_collection: "AlbumCollectionWrapper | None" = attrs.field(default=None)
+    _tag_collection: "TagCollectionWrapper | None" = attrs.field(default=None)
+    _duplicates_collection: "DuplicateCollectionWrapper | None" = attrs.field(
+        default=None
     )
-    tag_collection: "TagCollectionWrapper" = attrs.field(
-        validator=attrs.validators.instance_of(object)
-    )
-    duplicates_collection: "DuplicateCollectionWrapper" = attrs.field(
-        validator=attrs.validators.instance_of(object)
-    )
-    asset_manager: "AssetManager" = attrs.field(
-        validator=attrs.validators.instance_of(object)
-    )
+    _asset_manager: "AssetManager | None" = attrs.field(default=None)
+
+    def get_client_wrapper(self) -> "ImmichClientWrapper":
+        from immich_autotag.context.immich_client_wrapper import ImmichClientWrapper
+
+        if self._client is None:
+            self._client = ImmichClientWrapper.get_default_instance()
+        return self._client
+
+    def get_albums_collection(self) -> "AlbumCollectionWrapper":
+        if self._albums_collection is None:
+            from immich_autotag.albums.albums.album_collection_wrapper import (
+                AlbumCollectionWrapper,
+            )
+
+            self._albums_collection = AlbumCollectionWrapper.get_instance()
+        return self._albums_collection
+
+    def get_tag_collection(self) -> "TagCollectionWrapper":
+        if self._tag_collection is None:
+            from immich_autotag.tags.tag_collection_wrapper import TagCollectionWrapper
+
+            self._tag_collection = TagCollectionWrapper.get_instance()
+        return self._tag_collection
+
+    def get_duplicates_collection(self) -> "DuplicateCollectionWrapper":
+        if self._duplicates_collection is None:
+            from immich_autotag.duplicates.load_duplicates_collection import (
+                load_duplicates_collection,
+            )
+
+            client = self.get_client_wrapper().get_client()
+            self._duplicates_collection = load_duplicates_collection(client)
+        return self._duplicates_collection
+
+    def get_asset_manager(self) -> "AssetManager":
+        if self._asset_manager is None:
+            from immich_autotag.assets.asset_manager import AssetManager
+
+            self._asset_manager = AssetManager()
+        return self._asset_manager
+
+    @staticmethod
+    @typechecked
+    def get_run_output_dir() -> "RunExecution":
+        """
+        Returns the RunExecution object for the current run (logs_local/<timestamp>_PID<pid>),
+        using the same logic as RunOutputManager.get_run_output_dir().
+        """
+        from immich_autotag.run_output.manager import RunOutputManager
+
+        return RunOutputManager.current().get_run_output_dir()
+
+    def __attrs_post_init__(self):
+        global _instance
+        if _instance is not None:
+            raise RuntimeError(
+                "ImmichContext instance already exists. Use get_default_instance()."
+            )
+        _instance = self
+
+    @staticmethod
+    @typechecked
+    def get_default_instance() -> "ImmichContext":
+        global _instance
+        if _instance is None:
+            _instance = ImmichContext()
+        return _instance
+
+    # create_default_instance is no longer needed; use get_default_instance()
+
+    @staticmethod
+    def get_default_client() -> "ImmichClientWrapper":
+        """Returns the ImmichClientWrapper from the global singleton context."""
+        ctx = ImmichContext.get_default_instance()
+        return ctx.get_client_wrapper()

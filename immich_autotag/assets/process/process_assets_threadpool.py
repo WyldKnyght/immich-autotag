@@ -1,65 +1,80 @@
 from __future__ import annotations
 
 import concurrent.futures
-import time
-from threading import Lock
 
 from typeguard import typechecked
 
-from immich_autotag.assets.process.perf_log import perf_log
 from immich_autotag.assets.process.process_single_asset import process_single_asset
 from immich_autotag.config.internal_config import MAX_WORKERS
 from immich_autotag.context.immich_context import ImmichContext
+from immich_autotag.errors.recoverable_error import categorize_error
 from immich_autotag.logging.levels import LogLevel
 from immich_autotag.logging.utils import log
 from immich_autotag.report.modification_report import ModificationReport
-from immich_autotag.utils.perf.estimator import AdaptiveTimeEstimator
+from immich_autotag.statistics.statistics_manager import StatisticsManager
 
 
 @typechecked
 def process_assets_threadpool(
     context: ImmichContext,
-    max_assets: int | None,
-    tag_mod_report: ModificationReport,
-    lock: Lock,
-    estimator: AdaptiveTimeEstimator,
-    total_to_process: int | None,
-    skip_n: int,
-    total_assets: int | None,
-    LOG_INTERVAL: int,
-    start_time: float,
 ) -> None:
     log(
         "[CHECKPOINT] Checkpoint/resume is only supported in sequential mode. Disable USE_THREADPOOL for this feature.",
         level=LogLevel.PROGRESS,
     )
+    stats = StatisticsManager.get_instance().get_stats()
+    max_assets = stats.max_assets
     count = 0
-    last_log_time = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
-        for asset_wrapper in context.asset_manager.iter_assets(
+        for asset_wrapper in context.get_asset_manager().iter_assets(
             context, max_assets=max_assets
         ):
-            t0 = time.time()
-            future = executor.submit(
-                process_single_asset, asset_wrapper, tag_mod_report, lock
-            )
+            future = executor.submit(process_single_asset, asset_wrapper)
             futures.append(future)
-            t1 = time.time()
-            estimator.update(t1 - t0)
             count += 1
-            now = time.time()
-            if now - last_log_time >= LOG_INTERVAL:
-                elapsed = now - start_time
-                perf_log(
-                    count, elapsed, estimator, total_to_process, skip_n, total_assets
-                )
-                last_log_time = now
+            # Update count and checkpoint in StatisticsManager, which handles progress logging
+            StatisticsManager.get_instance().update_checkpoint(
+                last_processed_id=asset_wrapper.get_id(), count=count
+            )
         for future in concurrent.futures.as_completed(futures):
             try:
                 future.result()
             except Exception as e:
-                log(
-                    f"[ERROR] Failed to process an asset in the threadpool: {e}",
-                    level=LogLevel.IMPORTANT,
-                )
+                # Categorize the error
+                categorized = categorize_error(e)
+                is_recoverable = categorized.is_recoverable
+                category = categorized.category_name
+
+                if is_recoverable:
+                    # Log warning but continue
+                    import traceback
+
+                    tb = traceback.format_exc()
+                    log(
+                        f"[WARN] {category} - Asset processing failed (skipping): {e}\nTraceback:\n{tb}",
+                        level=LogLevel.IMPORTANT,
+                    )
+
+                    # Register the error in modification report
+                    from immich_autotag.report.modification_kind import ModificationKind
+
+                    tag_mod_report = ModificationReport.get_instance()
+                    if tag_mod_report:
+                        tag_mod_report.add_error_modification(
+                            kind=ModificationKind.ERROR_ASSET_SKIPPED_RECOVERABLE,
+                            error_message=str(e),
+                            error_category=category,
+                            extra={"traceback": tb},
+                        )
+                else:
+                    # Fatal error - abort the threadpool
+                    import traceback
+
+                    tb = traceback.format_exc()
+                    log(
+                        f"[ERROR] {category} - Aborting threadpool: {e}\nTraceback:\n{tb}",
+                        level=LogLevel.IMPORTANT,
+                    )
+                    executor.shutdown(wait=False)
+                    raise

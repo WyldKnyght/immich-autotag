@@ -1,8 +1,28 @@
+// ==================== CONFIG FLAGS ====================
+def ENABLE_JENKINS_TAGGING = true // Set to true to enable GitHub tagging
+
+// Helper for tagging (debe estar fuera del pipeline)
+def tagBuild(String type) {
+    def tagName = "jenkins-${type}-${env.BUILD_NUMBER ?: 'manual'}-${env.GIT_COMMIT ?: 'manual'}"
+    echo "🏷️ Creando tag GitHub (${type}): ${tagName}"
+    sh "git config user.name 'jenkins'"
+    sh "git config user.email 'jenkins@localhost'"
+    sh "git tag ${tagName}"
+    sh "ssh-keygen -F github.com > /dev/null || ssh-keyscan github.com >> $HOME/.ssh/known_hosts"
+    sh "git remote set-url origin git@github.com:txemi/immich-autotag.git"
+    sh "git push origin ${tagName}"
+}
 pipeline {
+    options {
+        // Keep only the last 4 builds
+        buildDiscarder(logRotator(numToKeepStr: '4'))
+    }
     agent {
         docker {
             image 'python:3.11-slim'
-            args '-v $HOME/.cache:/root/.cache -v $HOME/.config/immich_autotag:/root/.config/immich_autotag:ro --user root'
+            // Mounts ~/.ssh from host into the container as read-only for private key and known_hosts access
+            // Ensure $HOME/.ssh exists and contains the required key and known_hosts files
+            args '-v $HOME/.cache:/root/.cache -v $HOME/.config/immich_autotag:/root/.config/immich_autotag:ro -v $HOME/.ssh:/root/.ssh:ro --user root'
         }
     }
     
@@ -11,23 +31,28 @@ pipeline {
     }
     
     stages {
-        stage('Install System Dependencies') {
+        stage('Clean Python Caches') {
             steps {
-                sh '''
-                    apt-get update
-                    apt-get install -y git curl
-                    rm -rf /var/lib/apt/lists/*
-                '''
+                script {
+                    echo "Cleaning Python cache directories to prevent permission issues..."
+                    sh '''
+                        # Remove cache directories that can cause permission issues in Jenkins
+                        rm -rf .mypy_cache .pytest_cache __pycache__ *.pyc
+                        find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+                        find . -type f -name '*.pyc' -delete 2>/dev/null || true
+                        echo "✓ Cache directories cleaned"
+                    '''
+                }
             }
         }
         
-        stage('Setup Environment') {
+        stage('Install System Dependencies') {
             steps {
                 script {
-                    echo "Setting up Python environment..."
+                    echo "[JENKINS] Installing all system and dev tools via setup_venv.sh --dev..."
                     sh '''
                         chmod +x setup_venv.sh
-                        bash setup_venv.sh
+                        bash setup_venv.sh --dev
                     '''
                 }
             }
@@ -46,7 +71,35 @@ pipeline {
                 }
             }
         }
-        
+        stage('Quality Gate (Python OO)') {
+            steps {
+                script {
+                    echo "================ PYTHON QUALITY GATE (MODULAR OO VERSION) ================"
+                    echo "[PYTHON QUALITY GATE] Ejecutando Quality Gate Python (modular OO, attrs, enum, subprocess, type-safe)"
+                    sh '''
+                        # Configure git safe.directory to avoid ownership errors
+                        git config --global --add safe.directory "$PWD"
+                        chmod +x scripts/devtools/quality_gate_py/venv_launcher.sh
+                        bash scripts/devtools/quality_gate_py/venv_launcher.sh --level=STANDARD --mode=CHECK
+                    '''
+                }
+            }
+        }
+        stage('Quality Gate (Shell Script)') {
+            steps {
+                script {
+                    echo '🚨🚨 DEPRECATED: QUALITY GATE (SHELL SCRIPT) - USE PYTHON VERSION INSTEAD 🚨🚨'
+                    echo "Running Quality Gate (relaxed mode)..."
+                    sh '''
+                        chmod +x scripts/devtools/quality_gate.sh
+                        bash scripts/devtools/quality_gate.sh --level=STANDARD --mode=CHECK
+                    '''
+                }
+            }
+        }
+
+
+
         stage('Run Application') {
             steps {
                 script {
@@ -62,14 +115,42 @@ pipeline {
     
     post {
         always {
+            // Archive run outputs (logs, reports, links) generated per execution, excluding albums cache
+            archiveArtifacts artifacts: 'logs_local/**/*', excludes: 'logs_local/*/api_cache/*/**', fingerprint: true, allowEmptyArchive: true
             echo "Pipeline execution completed at ${new Date()}"
         }
+
         success {
             echo "✅ Pipeline succeeded - All stages passed"
+            script {
+                currentBuild.keepLog = true
+                echo "🔒 Build marked as 'Keep this build forever' (success)"
+                if (ENABLE_JENKINS_TAGGING) {
+                    tagBuild('success')
+                } else {
+                    echo "[INFO] Jenkins tagging and push is disabled by ENABLE_JENKINS_TAGGING flag."
+                }
+            }
         }
         failure {
             echo "❌ Pipeline FAILED - Check logs above"
-            // Puedes añadir notificación aquí si quieres
+            script {
+                if (ENABLE_JENKINS_TAGGING) {
+                    tagBuild('fail')
+                } else {
+                    echo "[INFO] Jenkins tagging and push is disabled by ENABLE_JENKINS_TAGGING flag."
+                }
+            }
+        }
+        aborted {
+            echo "⚠️ Pipeline ABORTED - Build was cancelled"
+            script {
+                if (ENABLE_JENKINS_TAGGING) {
+                    tagBuild('abort')
+                } else {
+                    echo "[INFO] Jenkins tagging and push is disabled by ENABLE_JENKINS_TAGGING flag."
+                }
+            }
         }
     }
 }

@@ -10,10 +10,7 @@ gitpython
 
 # For YAML support
 pyyaml
+types-PyYAML
 
 # For config models
 pydantic
-
-# For packaging (required to build the project)
-build
-twine

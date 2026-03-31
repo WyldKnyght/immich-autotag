@@ -1,33 +1,50 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from immich_autotag.classification.match_result import MatchResult
+
+from immich_autotag.config.dev_mode import is_crazy_debug_mode
+from immich_autotag.config.internal_config import DEFAULT_ERROR_MODE
+
+if TYPE_CHECKING:
+    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
+
 import attrs
 from typeguard import typechecked
 
 from immich_autotag.config.models import ClassificationRule
+from immich_autotag.types.uuid_wrappers import AssetUUID
 
 
 @attrs.define(auto_attribs=True, slots=True, frozen=True, eq=True)
 class ClassificationRuleWrapper:
+
     rule: ClassificationRule = attrs.field(
         validator=attrs.validators.instance_of(ClassificationRule)
     )
 
     def __attrs_post_init__(self):
+        """
+        Validates the rule configuration.
+        A rule must have at least one criterion (tags, albums, or asset_links).
+        Multiple criteria are combined with OR logic: the rule matches if ANY criterion is satisfied.
+        """
         tag_names = self.rule.tag_names
         album_patterns = self.rule.album_name_patterns
+        asset_links = self.rule.asset_links
+
         has_tags = bool(tag_names)
         has_albums = bool(album_patterns)
-        if has_tags and has_albums:
-            raise NotImplementedError(
-                f"ClassificationRuleWrapper: Each rule must have either tag_names or a single album_name_pattern, not both. Rule: {self.rule}"
-            )
-        if not has_tags and not has_albums:
+        has_asset_links = bool(asset_links)
+
+        # At least one criterion must be present
+        if not (has_tags or has_albums or has_asset_links):
             raise ValueError(
-                f"ClassificationRuleWrapper: Each rule must have either tag_names or a single album_name_pattern. Rule: {self.rule}"
+                f"ClassificationRuleWrapper: Each rule must have at least one criterion "
+                f"(tag_names, album_name_patterns, or asset_links). Rule: {self.rule}"
             )
-        if has_albums:
-            if not isinstance(album_patterns, list) or len(album_patterns) != 1:
-                raise NotImplementedError(
-                    f"ClassificationRuleWrapper: album_name_patterns must be a list with exactly one pattern. Rule: {self.rule}"
-                )
 
     @typechecked
     def has_tag(self, tag_name: str) -> bool:
@@ -39,8 +56,138 @@ class ClassificationRuleWrapper:
             return False
         import re
 
+        # Asegurarse de que no hay import local de AssetUUID ni shadowing
+
         return any(
             re.match(pattern, album_name) for pattern in self.rule.album_name_patterns
         )
 
+    @typechecked
+    def matches_asset(
+        self, asset_wrapper: "AssetResponseWrapper"
+    ) -> "MatchResult | None":
+        """
+        Returns a MatchResult for this rule and the given asset (with lists of matching tags, albums, and asset_links), or None if no match.
+        """
+        # Local import to avoid cycle
+        from immich_autotag.classification.match_result import MatchResult
+
+        # FOCUS log: asset link and rule info (direct attribute/method access)
+        asset_id = asset_wrapper.get_id()
+        asset_url = asset_wrapper.get_immich_photo_url().geturl()
+        from immich_autotag.logging.levels import LogLevel
+        from immich_autotag.logging.utils import log
+
+        log(
+            f"Evaluating asset: id={asset_id} url={asset_url} | {self.to_log_string()}",
+            level=LogLevel.FOCUS,
+        )
+        asset_tags = set(asset_wrapper.get_tag_names())
+        log(f"asset_tags: {asset_tags}", level=LogLevel.TRACE)
+        album_names = set(asset_wrapper.get_album_names())
+        log(f"album_names: {album_names}", level=LogLevel.TRACE)
+        log(f"asset_url: {asset_url}", level=LogLevel.TRACE)
+
+        tags_matched = [tag for tag in asset_tags if self.has_tag(tag)]
+        log(f"tags_matched: {tags_matched}", level=LogLevel.TRACE)
+        albums_matched = [album for album in album_names if self.matches_album(album)]
+        log(f"albums_matched: {albums_matched}", level=LogLevel.TRACE)
+
+        # Check asset_links (UUIDs)
+        asset_link_uuids = self.extract_uuids_from_asset_links()
+        log(f"asset_link_uuids: {asset_link_uuids}", level=LogLevel.TRACE)
+        asset_uuid = asset_wrapper.get_id()
+        log(f"asset_uuid: {asset_uuid}", level=LogLevel.TRACE)
+        # Also show the URL as a string in debug mode
+        log(f"asset_url (string): {asset_url}", level=LogLevel.TRACE)
+        asset_links_matched = []
+        if asset_link_uuids:
+            if asset_uuid in asset_link_uuids:
+                asset_links_matched = [str(asset_uuid)]
+        log(f"asset_links_matched: {asset_links_matched}", level=LogLevel.TRACE)
+
+        log(f"DEFAULT_ERROR_MODE: {DEFAULT_ERROR_MODE}", level=LogLevel.TRACE)
+
+        if is_crazy_debug_mode():
+            asset_id = asset_wrapper.get_id()
+            asset_url = asset_wrapper.get_immich_photo_url().geturl()
+            from immich_autotag.logging.levels import LogLevel
+            from immich_autotag.logging.utils import log
+
+            log(
+                f"Evaluating asset: id={asset_id} url={asset_url} | {self.to_log_string()}",
+                level=LogLevel.FOCUS,
+            )
+
+        if not tags_matched and not albums_matched and not asset_links_matched:
+            log("No matches found, returning None", level=LogLevel.TRACE)
+            return None
+        log(
+            f"Returning MatchResult: tags_matched={tags_matched}, albums_matched={albums_matched}, asset_links_matched={asset_links_matched}",
+            level=LogLevel.TRACE,
+        )
+        return MatchResult(
+            rule=self,
+            tags_matched=tags_matched,
+            albums_matched=albums_matched,
+            asset_links_matched=asset_links_matched,
+            asset=asset_wrapper,
+        )
+
+    @typechecked
+    def is_focused(self) -> bool:
+        """
+        Returns True if this rule targets concrete assets via `asset_links`.
+        Filtering by tags or albums alone does not count as focused.
+        """
+        return len(self.extract_uuids_from_asset_links()) > 0
+
+    @typechecked
+    def extract_uuids_from_asset_links(self) -> list[AssetUUID | None]:
+        """
+        Prototype: extracts all UUIDs from the links in asset_links using the centralized extractor.
+        """
+
+        if not self.rule.asset_links:
+            return []
+
+        from immich_autotag.classification.link_parsing.immich_url_uuid_extractor import (
+            ImmichUrlUuidExtractor,
+        )
+
+        return ImmichUrlUuidExtractor.extract_asset_uuids_from_links(
+            self.rule.asset_links or []
+        )
+
+    @typechecked
+    def remove_matches(
+        self, asset_wrapper: "AssetResponseWrapper", match_result: "MatchResult"
+    ) -> list[str]:
+        """
+        Removes all tags and albums from the asset that matched this rule (based on the MatchResult).
+        Returns a list of changes made.
+        """
+        changes: list[str] = []
+        # Remove matched tags
+        for tag in match_result.tags_matched():
+            if asset_wrapper.has_tag(tag_name=tag):
+                asset_wrapper.remove_tag_by_name(tag_name=tag)
+                changes.append(f"Removed matched tag '{tag}'")
+        # Remove matched albums (if logic exists for it)
+        # for album in match_result.albums_matched():
+        #     if album in asset_wrapper.get_album_names():
+        #         ... # logic to remove asset from album
+        #         changes.append(f"Removed asset from matched album '{album}'")
+        return changes
+
     # You can add more utility methods as needed
+
+    def to_log_string(self) -> str:
+        """
+        Returns a summary string of the rule for logging/debug.
+        """
+        return (
+            f"ClassificationRuleWrapper(tag_names={self.rule.tag_names}, "
+            f"album_patterns={self.rule.album_name_patterns}, "
+            f"asset_links={self.rule.asset_links})"
+        )

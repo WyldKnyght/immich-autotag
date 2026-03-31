@@ -1,80 +1,81 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generator, Optional
+from typing import TYPE_CHECKING, Callable, Generator
 
-from immich_client.api.assets import get_asset_info
-from immich_client.api.search import search_assets
-from immich_client.models import MetadataSearchDto
-from immich_client.models.asset_response_dto import AssetResponseDto
-from immich_client.models.search_asset_response_dto import SearchAssetResponseDto
 from typeguard import typechecked
 
+from immich_autotag.api.immich_proxy.search import (
+    SearchResponseDto,
+    proxy_search_assets,
+)
+from immich_autotag.api.logging_proxy.types import (
+    AssetResponseDto,
+    MetadataSearchDto,
+    Response,
+)
+from immich_autotag.assets.asset_dto_state import AssetDtoType
 from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
 from immich_autotag.logging.utils import log_debug
 
 if TYPE_CHECKING:
     from immich_autotag.context.immich_context import ImmichContext
 
-from typeguard import typechecked
-
 
 @typechecked
-def _fetch_assets_page(context: "ImmichContext", page: int) -> object:
-    from immich_client.api.search import search_assets
-    from immich_client.models import MetadataSearchDto
+def _fetch_assets_page(
+    context: "ImmichContext", page: int
+) -> Response[SearchResponseDto]:
 
     from immich_autotag.logging.utils import log_debug
 
     body = MetadataSearchDto(page=page)
     log_debug(f"[BUG] Before search_assets.sync_detailed, page={page}")
-    response = search_assets.sync_detailed(client=context.client, body=body)
+    # Use ImmichClient type for client
+    response = proxy_search_assets(
+        client=context.get_client_wrapper().get_client(), body=body
+    )
     log_debug(f"[BUG] After search_assets.sync_detailed, page={page}")
     return response
 
 
 @typechecked
 def _yield_assets_from_page(
-    assets_page: list,
+    assets_page: list[AssetResponseDto],
     start_idx: int,
     context: "ImmichContext",
     max_assets: int | None,
     count: int,
 ) -> Generator["AssetResponseWrapper", None, None]:
-    from immich_client.api.assets import get_asset_info
 
-    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
-    from immich_autotag.logging.utils import log_debug
-
+    # Use top-level imports where possible to avoid redefinition warnings.
     yielded = 0
+    # Import AssetManager here to avoid circular imports
+
+    # Use the explicit context getter to obtain the asset_manager
+    asset_manager = context.get_asset_manager()
+    # AssetManager is always expected to be present; remove None check
     for idx, asset in enumerate(assets_page):
         if idx < start_idx:
             continue
-        if max_assets is not None and count + yielded >= max_assets:
+        if max_assets is not None and max_assets >= 0 and count + yielded >= max_assets:
             break
-        log_debug(f"[BUG] Before get_asset_info.sync, asset_id={asset.id}")
-        asset_full = get_asset_info.sync(id=asset.id, client=context.client)
-        log_debug(f"[BUG] After get_asset_info.sync, asset_id={asset.id}")
-        if asset_full is not None:
-            log_debug(f"[BUG] Full asset loaded: {asset.id}")
-            yield AssetResponseWrapper(asset=asset_full, context=context)
-            yielded += 1
-        else:
-            log_debug(
-                f"[BUG] [ERROR] Could not load asset with id={asset.id}. get_asset_info returned None."
-            )
-            raise RuntimeError(
-                f"[ERROR] Could not load asset with id={asset.id}. get_asset_info returned None."
-            )
+        # asset is always AssetResponseDto
+        log_debug(f"[INFO] Using AssetManager to get wrapper, asset_id={asset.id}")
+        wrapper = asset_manager.get_wrapper_for_asset_dto(
+            asset_dto=asset, dto_type=AssetDtoType.SEARCH, context=context
+        )
+        yield wrapper
+        yielded += 1
 
 
 @typechecked
 def _log_page_progress(
     page: int,
-    assets_page: list,
+    assets_page: list[AssetResponseDto],
     count: int,
     abs_pos: int,
     total_assets: int | None,
-    log: callable,
+    log: Callable[[str], None],
 ) -> None:
     msg = f"[PROGRESS] Page {page}: {len(assets_page)} assets (full info) | Processed so far: {count} (absolute: {abs_pos}"
     if total_assets:
@@ -86,30 +87,42 @@ def _log_page_progress(
 @typechecked
 def get_all_assets(
     context: "ImmichContext", max_assets: int | None = None, skip_n: int = 0
-) -> Optional[Generator[AssetResponseWrapper, None, None]]:
-    # NOTE: Python's typeguard doesn't support empty generators well, so we allow Optional in the return.
-    # If there are no assets, the function may return None and not an empty generator.
+) -> Generator[AssetResponseWrapper, None, None]:
+    # Always return a generator, even if empty, to avoid None return type for type safety.
     """
     Generator that produces AssetResponseWrapper one by one as they are obtained from the API.
     Skips the first `skip_n` assets efficiently (without fetching their full info).
     """
     # The actual page size is determined by the backend. Initially we assume 100, but we detect it in the first response.
-    PAGE_SIZE = None
+    page_size = None  # Local variable for page size
     page = 1
     skip_offset = 0
     count = 0
-    skipped = 0
     from immich_autotag.logging.levels import LogLevel
     from immich_autotag.logging.utils import log
 
     log("Starting get_all_assets generator...", level=LogLevel.PROGRESS)
     first_page = True
+    skip_applied = False
+
+    # If there are no assets, yield nothing (empty generator)
+    # This ensures the function always returns a generator, never None.
     while True:
         response = _fetch_assets_page(context, page)
-        if response.status_code != 200:
-            log_debug(f"[BUG] Error: {response.status_code} - {response.content}")
-            raise RuntimeError(f"Error: {response.status_code} - {response.content}")
-        assets_page = response.parsed.assets.items
+        # response is expected to be a SearchResponseDto
+        # If using httpx or a custom Response, adapt as needed
+        # If response is a custom Response object, get .parsed
+        response_obj: SearchResponseDto = response.parsed if response.parsed is not None else response  # type: ignore[assignment]
+        # Now response_obj should be a SearchResponseDto
+        # assets_page should be a list[AssetResponseDto]
+        # assets_page should be a list[AssetResponseDto]
+        # Explicitly cast assets_page to correct type
+        raw_items = response_obj.assets.items  # type: ignore
+        if not isinstance(raw_items, list):
+            assets_page = []
+        else:
+            # Filter only AssetResponseDto objects
+            assets_page = [item for item in raw_items if isinstance(item, AssetResponseDto)]  # type: ignore
         log(
             f"[PROGRESS] Page {page}: {len(assets_page)} assets received from API.",
             level=LogLevel.PROGRESS,
@@ -121,24 +134,31 @@ def get_all_assets(
             )
             break
         if first_page:
-            PAGE_SIZE = len(assets_page)
+            page_size = len(assets_page)  # type: ignore
             if skip_n:
-                page = (skip_n // PAGE_SIZE) + 1
-                skip_offset = skip_n % PAGE_SIZE
-                if page > 1:
-                    first_page = False
-                    continue
+                page = (skip_n // page_size) + 1
+                skip_offset = skip_n % page_size
             first_page = False
-        start_idx = skip_offset if skip_n and page == (skip_n // PAGE_SIZE) + 1 else 0
+        # Apply skip only on the first page processed after calculation
+        start_idx = skip_offset if skip_n and not skip_applied else 0
+        log(
+            f"[PROGRESS] skip_n={skip_n}, page={page}, skip_offset={skip_offset}, start_idx={start_idx}, count={count}",
+            level=LogLevel.DEBUG,
+        )
+        log(
+            f"[PROGRESS] Yielding from page {page} with start_idx={start_idx}, count={count}",
+            level=LogLevel.DEBUG,
+        )
         for asset_wrapper in _yield_assets_from_page(
             assets_page, start_idx, context, max_assets, count
         ):
             yield asset_wrapper
             count += 1
+            log(f"[PROGRESS] Asset processed, count={count}", level=LogLevel.DEBUG)
+        skip_applied = bool(skip_n and not skip_applied)
         abs_pos = skip_n + count
-        response_assets = response.parsed.assets
-        assert isinstance(response_assets, SearchAssetResponseDto)
-        total_assets = response_assets.total
+        response_assets = response.parsed.assets if response.parsed is not None else None  # type: ignore[attr-defined]
+        total_assets = response_assets.total if response_assets is not None else None
         _log_page_progress(
             page,
             assets_page,
@@ -147,13 +167,14 @@ def get_all_assets(
             total_assets,
             lambda m: log(m, level=LogLevel.PROGRESS),
         )
-        if max_assets is not None and count >= max_assets:
+        # Only enforce limit when max_assets is a non-negative integer (None or -1 means unlimited)
+        if max_assets is not None and max_assets >= 0 and count >= max_assets:
             log(
                 f"[PROGRESS] max_assets reached after processing page {page} (count={count})",
                 level=LogLevel.PROGRESS,
             )
             break
-        if not response_assets.next_page:
+        if response_assets is None or not response_assets.next_page:  # type: ignore[attr-defined]
             log(
                 f"[PROGRESS] No next_page in response after page {page}, ending loop.",
                 level=LogLevel.PROGRESS,

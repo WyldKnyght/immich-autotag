@@ -1,7 +1,9 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import attrs
+from typeguard import typechecked
 
 from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
 
@@ -22,23 +24,17 @@ class AssetDateCandidate:
     Example: An asset can have several candidate dates (Immich, filename, EXIF, etc.), each represented by an instance of this class.
     """
 
-    asset_wrapper: AssetResponseWrapper = attrs.field(
+    _asset_wrapper: AssetResponseWrapper = attrs.field(
         validator=attrs.validators.instance_of(AssetResponseWrapper)
     )
-    source_kind: DateSourceKind = attrs.field(
+    _source_kind: DateSourceKind = attrs.field(
         validator=attrs.validators.instance_of(DateSourceKind)
     )
     _date: datetime = attrs.field(validator=attrs.validators.instance_of(datetime))
-    file_path: Optional[str] = attrs.field(
+    _file_path: Optional[Path] = attrs.field(
         default=None,
-        validator=attrs.validators.optional(attrs.validators.instance_of(str)),
+        validator=attrs.validators.optional(attrs.validators.instance_of(Path)),
     )
-
-    from typeguard import typechecked
-
-    @typechecked
-    def __str__(self) -> str:
-        return f"AssetDateCandidate(source_kind={self.source_kind}, date={self.get_aware_date()}, file_path={self.file_path}, asset_id={getattr(self.asset_wrapper, 'id', None)})"
 
     @typechecked
     def get_aware_date(self, user_tz: Optional[str] = None) -> datetime:
@@ -50,18 +46,56 @@ class AssetDateCandidate:
         if dt.tzinfo is not None:
             return dt
 
+        # Determine timezone to use
+        tz_str: str
         if user_tz:
-            tz = user_tz
+            tz_str = user_tz
         else:
             from immich_autotag.config.manager import ConfigManager
+            from immich_autotag.config.models import (
+                DateCorrectionConfig,
+                DuplicateProcessingConfig,
+                UserConfig,
+            )
 
             manager = ConfigManager.get_instance()
-            if not manager or not manager.config or not manager.config.features:
-                raise RuntimeError("ConfigManager or features config not initialized")
-            tz = manager.config.features.date_correction.extraction_timezone
+            config: UserConfig = manager.get_config()
+            tz_str = "UTC"  # Default fallback
+            duplicate_processing: Optional[DuplicateProcessingConfig] = (
+                config.duplicate_processing
+            )
+            if duplicate_processing is not None:
+                date_correction: Optional[DateCorrectionConfig] = (
+                    duplicate_processing.date_correction
+                )
+                if date_correction and date_correction.extraction_timezone:
+                    tz_str = date_correction.extraction_timezone
         from zoneinfo import ZoneInfo
 
-        return dt.replace(tzinfo=ZoneInfo(tz))
+        return dt.replace(tzinfo=ZoneInfo(tz_str))
+
+    @typechecked
+    def format_info(self) -> str:
+        aw = self._asset_wrapper
+        try:
+            link = aw.get_immich_photo_url().geturl()
+        except Exception:
+            link = "(no link)"
+        return f"[{self._source_kind.name}] date={self.get_aware_date()} | file_path={self._file_path} | asset_id={aw.get_id()} | link={link}"
+
+    @staticmethod
+    def from_internal_attrs(
+        source_kind: DateSourceKind,
+        date: datetime,
+        file_path: Optional[Path],
+        asset_wrapper: AssetResponseWrapper,
+    ) -> "AssetDateCandidate":
+        # Use positional arguments to avoid issues with private attribute names
+        # Order: _asset_wrapper, _source_kind, _date, _file_path
+        return AssetDateCandidate(asset_wrapper, source_kind, date, file_path)
+
+    def get_source_kind(self) -> DateSourceKind:
+        return self._source_kind
 
     @typechecked
     def __lt__(self, other: object) -> bool:
@@ -70,17 +104,9 @@ class AssetDateCandidate:
         return self.get_aware_date() < other.get_aware_date()
 
     @typechecked
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, AssetDateCandidate):
-            return NotImplemented
-        return self.get_aware_date() == other.get_aware_date()
-
-    @typechecked
-    def format_info(self) -> str:
-        aw = self.asset_wrapper
-        link = (
-            aw.get_immich_photo_url().geturl()
-            if hasattr(aw, "get_immich_photo_url")
-            else "(no link)"
-        )
-        return f"[{self.source_kind.name}] date={self.get_aware_date()} | file_path={self.file_path} | asset_id={aw.id} | link={link}"
+    def __str__(self) -> str:
+        try:
+            asset_id = self._asset_wrapper.get_id()
+        except Exception:
+            asset_id = None
+        return f"AssetDateCandidate(source_kind={self._source_kind}, date={self.get_aware_date()}, file_path={self._file_path}, asset_id={asset_id})"

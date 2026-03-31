@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import attr
@@ -14,11 +13,9 @@ if TYPE_CHECKING:
 
 
 @typechecked
-@attr.s(auto_attribs=True, kw_only=True)
+@attr.s(auto_attribs=True, kw_only=True, slots=True)
 class CheckpointManager:
-    stats_manager: "StatisticsManager" = attr.ib(
-        validator=attr.validators.instance_of(object)
-    )
+    stats_manager: "StatisticsManager" = attr.ib(init=True)
     OVERLAP: int = attr.ib(default=100, init=False)
 
     @stats_manager.validator
@@ -32,66 +29,41 @@ class CheckpointManager:
             )
 
     @typechecked
-    def get_effective_skip_n(self) -> tuple[str | None, int]:
-        config = ConfigManager.get_instance().config
-        enable_checkpoint_resume = (
-            config.features.enable_checkpoint_resume
-            if config and config.features
-            else False
-        )
-        stats_dir = self.stats_manager.stats_dir
-        if enable_checkpoint_resume:
-            logs_dir = stats_dir.parent if stats_dir else Path("logs")
+    def get_effective_skip_n(
+        self, config_skip_n: int = 0, config_resume_previous: bool = True
+    ) -> int:
+        """
+        Decides the value of skip_n and makes its origin clear in the log: previous checkpoint, config, or none.
+        """
+        enable_checkpoint_resume = ConfigManager.is_checkpoint_resume_enabled()
+
+        skip_n = 0
+        origen = None
+        if enable_checkpoint_resume and config_resume_previous:
             max_skip_n = get_max_skip_n_from_recent(
-                logs_dir, max_age_hours=3, overlap=self.OVERLAP
+                max_age_hours=3, overlap=self.OVERLAP
             )
-            if max_skip_n is not None:
+            if max_skip_n is not None and max_skip_n > 0:
                 skip_n = max_skip_n
-                last_processed_id = None
-                log(
-                    f"[CHECKPOINT] Will skip {skip_n} assets (from most advanced run in last 3h).",
-                    level=LogLevel.PROGRESS,
-                )
+                origen = f"checkpoint (previous stats in logs, overlap={self.OVERLAP})"
+            elif config_skip_n > 0:
+                skip_n = config_skip_n
+                origen = "configuration (skip.skip_n)"
             else:
-                stats = self.stats_manager.load_latest()
-                # If the last execution finished correctly, start from zero
-                if stats and stats.finished_at:
-                    last_processed_id, skip_n = None, 0
-                    log(
-                        "[CHECKPOINT] Last execution finished correctly. Starting from zero.",
-                        level=LogLevel.PROGRESS,
-                    )
-                elif stats:
-                    last_processed_id, skip_n = stats.last_processed_id, stats.count
-                    if skip_n > 0:
-                        adjusted_skip_n = max(0, skip_n - self.OVERLAP)
-                        if adjusted_skip_n != skip_n:
-                            log(
-                                f"[CHECKPOINT] Overlapping: skip_n adjusted from {skip_n} to {adjusted_skip_n} (overlap {self.OVERLAP})",
-                                level=LogLevel.PROGRESS,
-                            )
-                            skip_n = adjusted_skip_n
-                        else:
-                            log(
-                                f"[CHECKPOINT] Will skip {skip_n} assets (from checkpoint: id={last_processed_id}).",
-                                level=LogLevel.PROGRESS,
-                            )
-                    else:
-                        log(
-                            f"[CHECKPOINT] Will skip {skip_n} assets (from checkpoint: id={last_processed_id}).",
-                            level=LogLevel.PROGRESS,
-                        )
-                else:
-                    last_processed_id, skip_n = None, 0
-                    log(
-                        f"[CHECKPOINT] No previous stats found. Starting from the beginning.",
-                        level=LogLevel.PROGRESS,
-                    )
+                skip_n = 0
+                origen = "none (starting from the beginning)"
+        elif config_skip_n > 0:
+            skip_n = config_skip_n
+            origen = "configuration (skip.skip_n)"
         else:
-            last_processed_id, skip_n = None, 0
-            log(
-                "[CHECKPOINT] Checkpoint resume is disabled. Starting from the beginning.",
-                level=LogLevel.PROGRESS,
-            )
-        self.stats_manager.set_skip_n(skip_n)
-        return last_processed_id, skip_n
+            skip_n = 0
+            if not enable_checkpoint_resume:
+                origen = "checkpoint disabled"
+            else:
+                origen = "none (starting from the beginning)"
+
+        log(
+            f"[CHECKPOINT] skip_n={skip_n} (origen: {origen})",
+            level=LogLevel.PROGRESS,
+        )
+        return skip_n

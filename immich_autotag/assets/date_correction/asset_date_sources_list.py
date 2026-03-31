@@ -1,16 +1,18 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
-
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import attrs
 from typeguard import typechecked
 
-from .asset_date_candidates import AssetDateCandidate, AssetDateCandidates
+from immich_autotag.assets.asset_response_wrapper_list import AssetResponseWrapperList
+from immich_autotag.assets.validators import validate_asset_response_wrapper_not_none
+
+from .asset_date_candidate import AssetDateCandidate
+from .asset_date_candidates import AssetDateCandidates
 from .date_source_kind import DateSourceKind
+
+if TYPE_CHECKING:
+    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
 
 
 @attrs.define(auto_attribs=True, slots=True)
@@ -29,41 +31,53 @@ class AssetDateSourcesList:
     TODO: Consider renaming to AssetDateCandidatesList for clarity.
     """
 
-    asset_wrapper: "AssetResponseWrapper" = attrs.field()
+    _asset_wrapper: "AssetResponseWrapper" = attrs.field(
+        validator=validate_asset_response_wrapper_not_none
+    )
     # Each element represents the date candidates of a duplicate asset
-    date_candidates_per_duplicate: list[AssetDateCandidates] = attrs.field(factory=list)
+    _date_candidates_per_duplicate: list[AssetDateCandidates] = attrs.field(
+        factory=list
+    )
+
+    @typechecked
+    def get_asset_wrapper(self) -> "AssetResponseWrapper":
+        return self._asset_wrapper
+
+    @typechecked
+    def get_date_candidates_per_duplicate(self) -> list[AssetDateCandidates]:
+        return self._date_candidates_per_duplicate
+
+    # Holds a list of AssetDateCandidates sets, one for each duplicate asset (AssetResponseWrapper).
+    # Each entry in candidates_list is an AssetDateCandidates object for a specific asset/duplicate.
+    # The asset_wrapper field indicates the asset that triggered this investigation.
+    # TODO: Consider renaming to AssetDateCandidatesList for clarity.
 
     @typechecked
     def add(self, candidate_set: AssetDateCandidates) -> None:
-        self.date_candidates_per_duplicate.append(candidate_set)
+        self._date_candidates_per_duplicate.append(candidate_set)
 
     @typechecked
     def extend(self, candidate_sets: list[AssetDateCandidates]) -> None:
-        self.date_candidates_per_duplicate.extend(candidate_sets)
-
-    @typechecked
-    def __len__(self) -> int:
-        return len(self.date_candidates_per_duplicate)
-
-    @typechecked
-    def __iter__(self):
-        return iter(self.date_candidates_per_duplicate)
+        self._date_candidates_per_duplicate.extend(candidate_sets)
 
     @staticmethod
     @typechecked
     def from_wrappers(
-        asset_wrapper: "AssetResponseWrapper", wrappers: list["AssetResponseWrapper"]
+        asset_wrapper: "AssetResponseWrapper", wrappers: "AssetResponseWrapperList"
     ) -> "AssetDateSourcesList":
         """
-        Build an AssetDateSourcesList from a main AssetResponseWrapper and a list of AssetResponseWrapper objects (duplicates).
+        Build an AssetDateSourcesList from a main AssetResponseWrapper and an AssetResponseWrapperList (duplicates).
         Each wrapper gets its own AssetDateCandidates set.
         """
         from .get_asset_date_sources import get_asset_date_candidates
 
-        if not wrappers:
+        if not wrappers or len(wrappers) == 0:
             raise ValueError("wrappers list must not be empty")
-        candidate_sets = [get_asset_date_candidates(w) for w in wrappers]
-        return AssetDateSourcesList(asset_wrapper, candidate_sets)
+        sources_list = AssetDateSourcesList(asset_wrapper)
+        for w in wrappers:
+            candidate_set = get_asset_date_candidates(w)
+            sources_list.add(candidate_set)
+        return sources_list
 
     @typechecked
     def get_whatsapp_filename_date(self) -> Optional[datetime]:
@@ -74,9 +88,9 @@ class AssetDateSourcesList:
 
         dates = [
             c.get_aware_date()
-            for candidate_set in self.date_candidates_per_duplicate
-            for c in candidate_set.candidates
-            if c.source_kind == DateSourceKind.WHATSAPP_FILENAME
+            for candidate_set in self.get_date_candidates_per_duplicate()
+            for c in candidate_set.all_candidates()
+            if c.get_source_kind() == DateSourceKind.WHATSAPP_FILENAME
         ]
         return min(dates) if dates else None
 
@@ -87,8 +101,8 @@ class AssetDateSourcesList:
         """
         return [
             c
-            for candidate_set in self.date_candidates_per_duplicate
-            for c in candidate_set.candidates
+            for candidate_set in self.get_date_candidates_per_duplicate()
+            for c in candidate_set.all_candidates()
         ]
 
     @typechecked
@@ -96,8 +110,8 @@ class AssetDateSourcesList:
         """
         Returns all FILENAME type candidates from all candidate sets.
         """
-        result = []
-        for candidate_set in self.date_candidates_per_duplicate:
+        result: list[AssetDateCandidate] = []
+        for candidate_set in self.get_date_candidates_per_duplicate():
             result.extend(candidate_set.filename_candidates())
         return result
 
@@ -106,22 +120,22 @@ class AssetDateSourcesList:
         """
         Returns the oldest AssetDateCandidate among all duplicates.
         """
-        all_candidates = [
-            cset.oldest_candidate()
-            for cset in self.date_candidates_per_duplicate
-            if cset.oldest_candidate() is not None
-        ]
+        all_candidates: list[AssetDateCandidate] = []
+        for cset in self.get_date_candidates_per_duplicate():
+            candidate = cset.oldest_candidate()
+            if candidate is not None:
+                all_candidates.append(candidate)
         if not all_candidates:
             return None
-        return min(all_candidates)
+        return min(all_candidates, key=lambda c: c.get_aware_date())
 
     @typechecked
     def format_full_info(self) -> str:
-        lines = []
+        lines: list[str] = []
         lines.append("==== [AssetDateSourcesList] Complete diagnosis ====")
-        lines.append(f"Main asset: {self.asset_wrapper.format_info()}")
+        lines.append(f"Main asset: {self.get_asset_wrapper().format_info()}")
         lines.append("")
-        for i, candidate_set in enumerate(self.date_candidates_per_duplicate):
+        for i, candidate_set in enumerate(self.get_date_candidates_per_duplicate()):
             lines.append(f"--- Duplicate #{i+1} ---")
             lines.append(candidate_set.format_info())
             lines.append("")
@@ -132,7 +146,25 @@ class AssetDateSourcesList:
         self, kinds: list[DateSourceKind]
     ) -> list[AssetDateCandidate]:
         """Returns all candidates from all duplicates whose source_kind is in the kinds list."""
-        result = []
-        for candidate_set in self.date_candidates_per_duplicate:
+        result: list[AssetDateCandidate] = []
+        for candidate_set in self.get_date_candidates_per_duplicate():
             result.extend(candidate_set.candidates_by_kinds(kinds))
         return result
+
+    @staticmethod
+    @typechecked
+    def from_main_asset_wrapper(
+        asset_wrapper: "AssetResponseWrapper",
+    ) -> "AssetDateSourcesList":
+        """
+        Create an AssetDateSourcesList with only the main asset wrapper and no candidates.
+        """
+        return AssetDateSourcesList(asset_wrapper)
+
+    @typechecked
+    def __iter__(self):
+        return iter(self.get_date_candidates_per_duplicate())
+
+    @typechecked
+    def __len__(self) -> int:
+        return len(self.get_date_candidates_per_duplicate())

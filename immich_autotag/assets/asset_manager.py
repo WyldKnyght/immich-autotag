@@ -1,22 +1,55 @@
-from typing import TYPE_CHECKING, Dict, Iterator, Optional, Union
-from uuid import UUID
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Iterator, Optional
 
 import attrs
-from immich_client import Client
 from typeguard import typechecked
 
+from immich_autotag.api.logging_proxy.assets.get_asset_info import AssetResponseDto
+from immich_autotag.assets.asset_cache_entry import AssetCacheEntry
+from immich_autotag.assets.asset_dto_state import AssetDtoType
 from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
-from immich_autotag.assets.get_all_assets import get_all_assets
+from immich_autotag.config.internal_config import KEEP_ASSETS_IN_MEMORY
+from immich_autotag.types.uuid_wrappers import AssetUUID
+
+# Removed import: AssetCacheEntry is only used internally in AssetResponseWrapper
 
 if TYPE_CHECKING:
     from immich_autotag.context.immich_context import ImmichContext
+# Singleton instance storage
+_asset_manager_singleton: AssetManager | None = None
 
 
 @attrs.define(auto_attribs=True, slots=True)
 class AssetManager:
+    # If not kept in memory, _assets will be None
+    _assets: Optional[dict[AssetUUID, AssetResponseWrapper]] = attrs.field(
+        default=None, init=False
+    )
+    _keep_assets_in_memory: bool = attrs.field(
+        default=KEEP_ASSETS_IN_MEMORY, init=False
+    )
 
-    client: Client
-    _assets: Dict[UUID, AssetResponseWrapper] = attrs.field(factory=dict, init=False)
+    def __attrs_post_init__(self):
+        global _asset_manager_singleton
+        if _asset_manager_singleton is not None:
+            raise RuntimeError(
+                "AssetManager singleton violation: a second instance was created. "
+                "Use AssetManager.get_instance() to access the singleton."
+            )
+        _asset_manager_singleton = self
+        self._keep_assets_in_memory = KEEP_ASSETS_IN_MEMORY
+        if self._keep_assets_in_memory:
+            self._assets = {}
+        else:
+            self._assets = None
+
+    @classmethod
+    def get_instance(cls) -> "AssetManager":
+        global _asset_manager_singleton
+        if _asset_manager_singleton is None:
+            _asset_manager_singleton = cls()
+        return _asset_manager_singleton
 
     @typechecked
     def iter_assets(
@@ -29,43 +62,52 @@ class AssetManager:
         Iterates over all assets, using the original generator, and stores them in the internal cache.
         Supports skipping the first `skip_n` assets efficiently.
         """
+        from immich_autotag.assets.get_all_assets import get_all_assets
+
         for asset in get_all_assets(context, max_assets=max_assets, skip_n=skip_n):
-            asset_uuid = UUID(asset.id)
-            self._assets[asset_uuid] = asset
+            if not isinstance(asset, AssetResponseWrapper):
+                raise RuntimeError(f"Expected AssetResponseWrapper, got {type(asset)}")
+            asset_uuid = asset.get_id()
+            if self._assets is not None:
+                self._assets[asset_uuid] = asset
             yield asset
 
     @typechecked
     def get_asset(
-        self, asset_id: UUID, context: "ImmichContext"
+        self, asset_id: "AssetUUID", context: "ImmichContext"
     ) -> Optional[AssetResponseWrapper]:
         """
-        Returns an asset by its UUID, using the cache if available,
+        Returns an asset by its AssetUUID, using the cache if available,
         or requesting it from the API and storing it if not.
+        First checks the in-memory cache, then disk, and finally the API.
         """
-        if asset_id in self._assets:
+        if self._assets is not None and asset_id in self._assets:
             return self._assets[asset_id]
-        # If not cached, request it from the API and wrap it
-        from immich_client.api.assets import get_asset_info
 
-        dto = get_asset_info.sync(id=str(asset_id), client=self.client)
-        if dto is None:
-            return None
-        asset = AssetResponseWrapper.from_dto(dto, context)
-        self._assets[asset_id] = asset
+        asset = AssetResponseWrapper.from_id(asset_id, context)
+        if self._assets is not None:
+            self._assets[asset_id] = asset
         return asset
 
-    from immich_client.models.asset_response_dto import AssetResponseDto
-
     @typechecked
-    def get_wrapper_for_asset(
-        self, asset_dto: AssetResponseDto, context: "ImmichContext"
+    def get_wrapper_for_asset_dto(
+        self,
+        *,
+        asset_dto: AssetResponseDto,
+        dto_type: AssetDtoType,
+        context: "ImmichContext",
     ) -> AssetResponseWrapper:
         """
         Given an asset DTO, return the corresponding AssetResponseWrapper from cache or create it.
         """
-        asset_uuid = UUID(asset_dto.id)
-        if asset_uuid in self._assets:
+        if dto_type not in (AssetDtoType.ALBUM, AssetDtoType.SEARCH):
+            raise ValueError(f"Unsupported dto_type {dto_type} for album asset DTOs")
+        asset_uuid = AssetUUID.from_string(asset_dto.id)
+        if self._assets is not None and asset_uuid in self._assets:
             return self._assets[asset_uuid]
-        wrapper = AssetResponseWrapper.from_dto(asset_dto, context)
-        self._assets[asset_uuid] = wrapper
+
+        entry = AssetCacheEntry.from_dto_entry(dto=asset_dto, dto_type=dto_type)
+        wrapper = AssetResponseWrapper(context, entry)
+        if self._assets is not None:
+            self._assets[asset_uuid] = wrapper
         return wrapper

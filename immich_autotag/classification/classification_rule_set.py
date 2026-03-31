@@ -1,14 +1,21 @@
-# Imports the MatchResult class from the new file
-from typing import TYPE_CHECKING, Dict, List
+from __future__ import annotations
+
+from typing import Dict, List
 
 import attrs
 from typeguard import typechecked
 
+from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
 from immich_autotag.classification.classification_rule_wrapper import (
     ClassificationRuleWrapper,
 )
 from immich_autotag.classification.match_result import MatchResult
 from immich_autotag.classification.match_result_list import MatchResultList
+from immich_autotag.context.immich_context import ImmichContext
+from immich_autotag.types.uuid_wrappers import AssetUUID
+
+# Imports the MatchResult class from the new file
+
 
 # Example usage:
 # rule_set = get_rule_set_from_config_manager()
@@ -16,27 +23,15 @@ from immich_autotag.classification.match_result_list import MatchResultList
 #     print("Tag exists in rules!")
 
 
-if TYPE_CHECKING:
-    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
-
-
 @attrs.define(auto_attribs=True, slots=True, kw_only=True)
 class ClassificationRuleSet:
 
-    rules: List[ClassificationRuleWrapper]
-
-    @typechecked
-    def __len__(self) -> int:
-        return len(self.rules)
-
-    @typechecked
-    def __getitem__(self, idx: int) -> ClassificationRuleWrapper:
-        return self.rules[idx]
+    _rules: List[ClassificationRuleWrapper]
 
     @typechecked
     def as_dicts(self) -> List[Dict[str, object]]:
         """Return the rules as a list of dicts (for debugging/logging)."""
-        return [wrapper.rule.model_dump() for wrapper in self.rules]
+        return [wrapper.rule.model_dump() for wrapper in self._rules]
 
     @typechecked
     def print_rules(self) -> None:
@@ -50,15 +45,6 @@ class ClassificationRuleSet:
         log(f"Loaded classification rules:\n{rules_str}", level=LogLevel.FOCUS)
 
     # Add more utility methods as needed for rule matching, filtering, etc.
-    @typechecked
-    def __has_tag(self, tag_name: str) -> bool:
-        """
-        Returns True if the given tag_name exists in any rule's tag_names list.
-        """
-        for wrapper in self.rules:
-            if wrapper.has_tag(tag_name):
-                return True
-        return False
 
     @staticmethod
     @typechecked
@@ -71,15 +57,10 @@ class ClassificationRuleSet:
         )
 
         manager = ConfigManager.get_instance()
-        if (
-            not manager
-            or not manager.config
-            or not hasattr(manager.config, "classification_rules")
-        ):
-            raise RuntimeError("ConfigManager or classification_rules not initialized")
+
         wrappers = [
             ClassificationRuleWrapper(rule)
-            for rule in manager.config.classification_rules
+            for rule in manager.get_config().classification.rules
         ]
         return ClassificationRuleSet(rules=wrappers)
 
@@ -89,8 +70,8 @@ class ClassificationRuleSet:
         Returns True if the album_name matches any album_name_patterns in any rule.
         """
         # Use MatchResultList logic to centralize matches
-        for wrapper in self.rules:
-            if wrapper.matches_album(album_name):
+        for rule_wrapper in self._rules:
+            if rule_wrapper.matches_album(album_name):
                 return True
         return False
 
@@ -98,22 +79,23 @@ class ClassificationRuleSet:
     def matching_rules(self, asset_wrapper: "AssetResponseWrapper") -> MatchResultList:
         """
         Returns a MatchResultList: each one indicates the rule and the element (tag or album) that matched.
+        Uses lazy loading via the factory method to compute matches on demand.
         """
-        asset_tags = set(asset_wrapper.get_tag_names())
-        album_names = set(asset_wrapper.get_album_names())
-        matches: list[MatchResult] = []
-        for wrapper in self.rules:
-            # Match by tag
-            for tag in asset_tags:
-                if wrapper.has_tag(tag):
-                    matches.append(MatchResult(rule=wrapper, tag_name=tag))
-            # Match by album
-            for album in album_names:
-                if wrapper.matches_album(album):
-                    matches.append(MatchResult(rule=wrapper, album_name=album))
-        return MatchResultList(matches=matches)
+        return MatchResultList.from_rules_and_asset(rules=self, asset=asset_wrapper)
+
     @typechecked
-    def matches_any_album_of_asset(self, asset_wrapper: 'AssetResponseWrapper') -> bool:
+    def is_focused(self) -> bool:
+        """
+        Returns True when any rule in the set targets concrete assets via `asset_links`.
+        Filtering by tags or albums alone does not count as focused.
+        """
+        for rule_wrapper in self._rules:
+            if rule_wrapper.is_focused():
+                return True
+        return False
+
+    @typechecked
+    def matches_any_album_of_asset(self, asset_wrapper: "AssetResponseWrapper") -> bool:
         """
         Returns True if any album name of the asset matches any album_name_patterns in any rule.
         """
@@ -121,3 +103,68 @@ class ClassificationRuleSet:
             if self.matches_album(album_name):
                 return True
         return False
+
+    @typechecked
+    def get_filtered_in_assets_by_uuid(
+        self, context: ImmichContext
+    ) -> List["AssetResponseWrapper"]:
+        """
+        Extracts all UUIDs from asset_links of all rules,
+        loads the assets from the API and returns the list of AssetResponseWrapper.
+        """
+
+        all_uuids: List[AssetUUID] = []
+        for rule_wrapper in self._rules:
+            # Only add non-None AssetUUIDs
+            all_uuids.extend(
+                [
+                    uuid
+                    for uuid in rule_wrapper.extract_uuids_from_asset_links()
+                    if isinstance(uuid, AssetUUID)
+                ]
+            )
+
+        if not all_uuids:
+            return []
+
+        wrappers: List[AssetResponseWrapper] = []
+
+        for asset_uuid in all_uuids:
+            asset_wrapper = context.get_asset_manager().get_asset(asset_uuid, context)
+            if asset_wrapper is None:
+                raise RuntimeError(
+                    f"[ERROR] Asset with ID {asset_uuid} could not be loaded from API."
+                )
+            wrappers.append(asset_wrapper)
+
+        print(
+            f"[INFO] Filtered mode: Only processing {len(wrappers)} asset(s) from filter rules."
+        )
+        return wrappers
+
+    @typechecked
+    def match_asset(self, asset: "AssetResponseWrapper") -> list[MatchResult]:
+        """
+        Returns a list of MatchResult for all rules that match the given asset.
+        This encapsulates the matching logic for better separation of responsibilities.
+        """
+        matches: list[MatchResult] = []
+        for rule_wrapper in self._rules:
+            match = rule_wrapper.matches_asset(asset)
+            if match is not None:
+                matches.append(match)
+        return matches
+
+    def get_rules(self) -> list[ClassificationRuleWrapper]:
+        """
+        Public method to access the list of rule wrappers.
+        """
+        return list(self._rules)
+
+    @typechecked
+    def __getitem__(self, idx: int) -> ClassificationRuleWrapper:
+        return self._rules[idx]
+
+    @typechecked
+    def __len__(self) -> int:
+        return len(self._rules)

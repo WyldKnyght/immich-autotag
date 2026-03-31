@@ -1,163 +1,361 @@
 
+
 #!/bin/bash
 # Robust script to create virtual environment, install dependencies, and generate/install the local client
 # Automatically detects Immich server version and downloads the matching OpenAPI spec
 # Always operates from the repository root, regardless of the invocation directory
-# Usage: source setup_venv.sh
+
+# Usage:
+#   ./setup_venv.sh [--clean]
+#   --clean   Deletes .venv and immich-client before creating environment and client
 
 set -e
 
-# Determine the repository root (where this script is located)
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$REPO_ROOT"
+# --- MAIN FUNCTIONS ---
 
-VENV_DIR="$REPO_ROOT/.venv"
-CLIENT_DIR="$REPO_ROOT/immich-client"
-CONFIG_FILE="$HOME/.config/immich_autotag/config.py"
+parse_args() {
+	CLEAN=0
+	SHOW_HELP=0
+	MODE="dev" # Default mode
+	for arg in "$@"; do
+		case $arg in
+		--clean)
+			CLEAN=1
+			;;
+		--prod)
+			MODE="prod"
+			;;
+		--dev)
+			MODE="dev"
+			;;
+		--help | -h)
+			SHOW_HELP=1
+			;;
+		esac
+	done
+}
 
-# Function to extract config value from Python file
+print_help() {
+	echo "Usage: $0 [--clean] [--prod] [--dev] [--help]"
+	echo "  --clean   Deletes .venv and immich-client before creating environment and client."
+	echo "  --prod    Only installs runtime (production) dependencies."
+	echo "  --dev     Installs development dependencies (default)."
+	echo "  --help    Shows this help and exits."
+}
+# --- AUXILIARY FUNCTIONS ---
+
+# Inicializa rutas y variables globales
+init_paths() {
+	REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	cd "$REPO_ROOT"
+
+	VENV_DIR="$REPO_ROOT/.venv"
+	CLIENT_DIR="$REPO_ROOT/immich-client"
+	CONFIG_FILE="$HOME/.config/immich_autotag/config.py"
+}
+
+clean_env() {
+	echo "Cleaning $VENV_DIR and $CLIENT_DIR..."
+	rm -rf "$VENV_DIR" "$CLIENT_DIR"
+	echo "Cleanup completed."
+}
+
 extract_config() {
-    local key=$1
-    local value=""
-    
-    if [ ! -f "$CONFIG_FILE" ]; then
-        return
-    fi
-    
-    # Use grep + sed to extract value
-    # Handles both quoted strings: key="value" or key='value'
-    # And unquoted values: key=123
-    value=$(grep -E "^\s*$key\s*=" "$CONFIG_FILE" | sed -E 's/.*=\s*["\x27]?([^"\x27,]*)(["\x27,].*)?/\1/' | head -1 | tr -d '\n\r\t ')
-    
-    echo "$value"
+	local key=$1
+	local value=""
+	if [ ! -f "$CONFIG_FILE" ]; then
+		return
+	fi
+	value=$(grep -E "^\s*$key\s*=" "$CONFIG_FILE" | sed -E 's/.*=\s*["\x27]?([^"\x27,]*)(["\x27,].*)?/\1/' | head -1 | tr -d '\n\r\t ')
+	echo "$value"
 }
 
-# Function to get Immich server version from API
 get_immich_version() {
-    local host=$1
-    local port=$2
-    local api_key=$3
-    
-    echo "[DEBUG] get_immich_version called with:" >&2
-    echo "  host='$host'" >&2
-    echo "  port='$port'" >&2
-    echo "  api_key_length=${#api_key}" >&2
-    
-    if [ -z "$host" ] || [ -z "$port" ] || [ -z "$api_key" ]; then
-        echo "[DEBUG] Missing parameters, returning 'main'" >&2
-        echo "main"
-        return
-    fi
-    
-    local url="http://$host:$port/api/server/version"
-    echo "[DEBUG] Calling API: $url" >&2
-    
-    # Try to get server version from API endpoint /api/server/version
-    # Returns JSON like: {"major": 2, "minor": 4, "patch": 1}
-    local response=$(curl -s -m 5 -H "x-api-key: $api_key" "$url" 2>&1)
-    local curl_exit=$?
-    
-    echo "[DEBUG] curl exit code: $curl_exit" >&2
-    echo "[DEBUG] API response: $response" >&2
-    
-    if [ $curl_exit -ne 0 ] || [ -z "$response" ]; then
-        echo "[DEBUG] curl failed or empty response, returning 'main'" >&2
-        echo "main"
-        return
-    fi
-    
-    # Extract version numbers using grep
-    local major=$(echo "$response" | grep -o '"major":[0-9]*' | cut -d':' -f2)
-    local minor=$(echo "$response" | grep -o '"minor":[0-9]*' | cut -d':' -f2)
-    local patch=$(echo "$response" | grep -o '"patch":[0-9]*' | cut -d':' -f2)
-    
-    echo "[DEBUG] Extracted: major='$major' minor='$minor' patch='$patch'" >&2
-    
-    if [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ]; then
-        echo "[DEBUG] Failed to extract version numbers, returning 'main'" >&2
-        echo "main"
-    else
-        # Format as v<major>.<minor>.<patch> (e.g., v2.4.1)
-        local version="v${major}.${minor}.${patch}"
-        echo "[DEBUG] Detected version: $version" >&2
-        echo "$version"
-    fi
+	local host=$1
+	local port=$2
+	local api_key=$3
+	echo "[DEBUG] get_immich_version called with:" >&2
+	echo "  host='$host'" >&2
+	echo "  port='$port'" >&2
+	echo "  api_key_length=${#api_key}" >&2
+	if [ -z "$host" ] || [ -z "$port" ] || [ -z "$api_key" ]; then
+		echo "[DEBUG] Missing parameters, returning 'main'" >&2
+		echo "main"
+		return
+	fi
+	local url="http://$host:$port/api/server/version"
+	echo "[DEBUG] Calling API: $url" >&2
+	local response=$(curl -s -m 5 -H "x-api-key: $api_key" "$url" 2>&1)
+	local curl_exit=$?
+	echo "[DEBUG] curl exit code: $curl_exit" >&2
+	echo "[DEBUG] API response: $response" >&2
+	if [ $curl_exit -ne 0 ] || [ -z "$response" ]; then
+		echo "[DEBUG] curl failed or empty response, returning 'main'" >&2
+		echo "main"
+		return
+	fi
+	local major=$(echo "$response" | grep -o '"major":[0-9]*' | cut -d':' -f2)
+	local minor=$(echo "$response" | grep -o '"minor":[0-9]*' | cut -d':' -f2)
+	local patch=$(echo "$response" | grep -o '"patch":[0-9]*' | cut -d':' -f2)
+	echo "[DEBUG] Extracted: major='$major' minor='$minor' patch='$patch'" >&2
+	if [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ]; then
+		echo "[DEBUG] Failed to extract version numbers, returning 'main'" >&2
+		echo "main"
+	else
+		local version="v${major}.${minor}.${patch}"
+		echo "[DEBUG] Detected version: $version" >&2
+		echo "$version"
+	fi
 }
 
-# Read Immich configuration
-IMMICH_HOST=""
-IMMICH_PORT=""
-IMMICH_API_KEY=""
+# Gets the appropriate OpenAPI URL according to the configuration
+get_openapi_url() {
+	local config_file="$1"
+	local default_version="v2.4.1"
+	local immich_host=""
+	local immich_port=""
+	local immich_api_key=""
+	local immich_version=""
 
-if [ -f "$CONFIG_FILE" ]; then
-    echo "Reading configuration from $CONFIG_FILE..."
-    IMMICH_HOST=$(extract_config "host")
-    IMMICH_PORT=$(extract_config "port")
-    IMMICH_API_KEY=$(extract_config "api_key")
-fi
+	if [ -f "$config_file" ]; then
+		echo "Reading configuration from $config_file..."
+		immich_host=$(extract_config "host")
+		immich_port=$(extract_config "port")
+		immich_api_key=$(extract_config "api_key")
+	fi
 
-# Default fallback version (matches common deployment v2.4.1)
-DEFAULT_IMMICH_VERSION="v2.4.1"
+	if [ -n "$immich_host" ] && [ -n "$immich_port" ] && [ -n "$immich_api_key" ]; then
+		echo "Connecting to Immich at http://$immich_host:$immich_port to detect version..."
+		immich_version=$(get_immich_version "$immich_host" "$immich_port" "$immich_api_key")
+		echo "Detected Immich version: $immich_version"
+	else
+		echo "WARNING: Could not read Immich config. Config values: host='$immich_host' port='$immich_port' api_key_length=${#immich_api_key}"
+		echo "WARNING: Using default OpenAPI spec version: $default_version"
+		immich_version="$default_version"
+	fi
+	local openapi_url="https://raw.githubusercontent.com/immich-app/immich/$immich_version/open-api/immich-openapi-specs.json"
+	echo "Using OpenAPI spec from: $openapi_url"
+	# Export for use in main
+	OPENAPI_URL="$openapi_url"
+}
+create_venv() {
+	if [ -d "$VENV_DIR" ]; then
+		echo "Virtual environment already exists at $VENV_DIR"
+		source "$VENV_DIR/bin/activate"
+		echo "Virtual environment activated."
+		return
+	fi
+	python3 -m venv "$VENV_DIR"
+	echo "Virtual environment created at $VENV_DIR"
+	source "$VENV_DIR/bin/activate"
+	echo "Virtual environment activated."
+}
 
-# Get server version and construct OpenAPI spec URL
-if [ -n "$IMMICH_HOST" ] && [ -n "$IMMICH_PORT" ] && [ -n "$IMMICH_API_KEY" ]; then
-    echo "Connecting to Immich at http://$IMMICH_HOST:$IMMICH_PORT to detect version..."
-    IMMICH_VERSION=$(get_immich_version "$IMMICH_HOST" "$IMMICH_PORT" "$IMMICH_API_KEY")
-    echo "Detected Immich version: $IMMICH_VERSION"
-else
-    echo "WARNING: Could not read Immich config. Config values: host='$IMMICH_HOST' port='$IMMICH_PORT' api_key_length=${#IMMICH_API_KEY}"
-    echo "WARNING: Using default OpenAPI spec version: $DEFAULT_IMMICH_VERSION"
-    IMMICH_VERSION="$DEFAULT_IMMICH_VERSION"
-fi
+# Instala dependencias Python de runtime
+install_python_requirements() {
+	if [ ! -f "$REPO_ROOT/requirements.txt" ]; then
+		echo "requirements.txt not found."
+		return
+	fi
+	pip install --upgrade pip
+	grep -v '^immich-client' "$REPO_ROOT/requirements.txt" | grep -v '^#' | xargs -r pip install
+	echo "Runtime dependencies installed."
+}
+# Install Node.js and npm if not present (for jscpd/quality gate)
+install_nodejs_npm() {
+	if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+		echo "[DEV] Node.js and npm already installed. Skipping."
+		return
+	fi
+	if ! command -v apt-get >/dev/null 2>&1; then
+		echo "[DEV] Skipping Node.js/npm installation: apt-get not found. Install nodejs and npm manually if needed."
+		return
+	fi
+	echo "[DEV] Installing Node.js and npm (for jscpd/quality gate)..."
+	if command -v sudo >/dev/null 2>&1; then
+		sudo apt-get update && sudo apt-get install -y nodejs npm
+	elif [ "$(id -u)" -eq 0 ]; then
+		apt-get update && apt-get install -y nodejs npm
+	else
+		echo "ERROR: Neither sudo is available nor running as root. Cannot install nodejs/npm." >&2
+		exit 1
+	fi
+	if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+		echo "ERROR: Node.js/npm installation failed. Please install them manually." >&2
+		exit 1
+	fi
+}
 
-# Construct the URL with the detected version
-OPENAPI_URL="https://raw.githubusercontent.com/immich-app/immich/$IMMICH_VERSION/open-api/immich-openapi-specs.json"
-echo "Using OpenAPI spec from: $OPENAPI_URL"
+# Install shfmt if not present
+install_shfmt() {
+	if command -v shfmt >/dev/null 2>&1; then
+		echo "[DEV] shfmt already installed. Skipping system tools installation."
+		return
+	fi
+	if ! command -v apt-get >/dev/null 2>&1; then
+		echo "[DEV] Skipping system tools installation: apt-get not found. Install shfmt and jscpd manually if needed."
+		return
+	fi
+	echo "[DEV] Installing system development tools (shfmt, etc.)..."
+	if command -v sudo >/dev/null 2>&1; then
+		sudo apt-get update && sudo apt-get install -y shfmt
+	elif [ "$(id -u)" -eq 0 ]; then
+		apt-get update && apt-get install -y shfmt
+	else
+		echo "ERROR: Neither sudo is available nor running as root. Cannot install shfmt." >&2
+		exit 1
+	fi
+	if ! command -v shfmt >/dev/null 2>&1; then
+		echo "ERROR: shfmt installation failed. Please install it manually." >&2
+		exit 1
+	fi
+}
+# Install curl if not present
+install_curl() {
+	if command -v curl >/dev/null 2>&1; then
+		echo "[DEV] curl already installed. Skipping."
+		return
+	fi
+	if ! command -v apt-get >/dev/null 2>&1; then
+		echo "[DEV] Skipping curl installation: apt-get not found. Install curl manually if needed."
+		return
+	fi
+	echo "[DEV] Installing curl..."
+	if command -v sudo >/dev/null 2>&1; then
+		sudo apt-get update && sudo apt-get install -y curl
+	elif [ "$(id -u)" -eq 0 ]; then
+		apt-get update && apt-get install -y curl
+	else
+		echo "ERROR: Neither sudo is available nor running as root. Cannot install curl." >&2
+		exit 1
+	fi
+	if ! command -v curl >/dev/null 2>&1; then
+		echo "ERROR: curl installation failed. Please install it manually." >&2
+		exit 1
+	fi
+}
+# Install gh CLI if not present
+install_gh_cli() {
+	if command -v gh >/dev/null 2>&1; then
+		echo "[DEV] gh CLI already installed. Skipping."
+		return
+	fi
+	if ! command -v apt-get >/dev/null 2>&1; then
+		echo "[DEV] Skipping gh CLI installation: apt-get not found. Install gh manually if needed."
+		return
+	fi
+	echo "[DEV] Installing GitHub CLI (gh)..."
+	install_curl
+	# Add GitHub CLI repo if not present
+	if ! apt-cache policy | grep -q 'cli.github.com'; then
+		if command -v sudo >/dev/null 2>&1; then
+			curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+			sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+			echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+			sudo apt-get update
+			sudo apt-get install -y gh
+		elif [ "$(id -u)" -eq 0 ]; then
+			curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+			chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+			echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+			apt-get update
+			apt-get install -y gh
+		else
+			echo "ERROR: Neither sudo is available nor running as root. Cannot install gh CLI." >&2
+			exit 1
+		fi
+	else
+		if command -v sudo >/dev/null 2>&1; then
+			sudo apt-get update && sudo apt-get install -y gh
+		elif [ "$(id -u)" -eq 0 ]; then
+			apt-get update && apt-get install -y gh
+		else
+			echo "ERROR: Neither sudo is available nor running as root. Cannot install gh CLI." >&2
+			exit 1
+		fi
+	fi
+	if ! command -v gh >/dev/null 2>&1; then
+		echo "ERROR: gh CLI installation failed. Please install it manually." >&2
+		exit 1
+	fi
+}
+# Install system development tools (dev mode only)
+install_system_dev_tools() {
+	if [ "$MODE" = "dev" ]; then
+		install_nodejs_npm
+		install_shfmt
+		install_gh_cli
+	fi
+}
 
+# Install Python development dependencies (dev mode only)
+install_python_dev_requirements() {
+	if [ "$MODE" != "dev" ]; then
+		echo "Production mode: only runtime dependencies installed."
+		return
+	fi
+	if [ ! -f "$REPO_ROOT/requirements-dev.txt" ]; then
+		echo "requirements-dev.txt not found. Skipping dev dependencies."
+		return
+	fi
+	pip install -r "$REPO_ROOT/requirements-dev.txt"
+	echo "Development dependencies installed."
+}
 
+# Orchestrates dependency installation
+install_dependencies() {
+	install_python_requirements
+	install_system_dev_tools
+	install_python_dev_requirements
+}
 
-if [ ! -d "$VENV_DIR" ]; then
-    python3 -m venv "$VENV_DIR"
-    echo "Virtual environment created at $VENV_DIR"
-else
-    echo "Virtual environment already exists at $VENV_DIR"
-fi
+generate_and_install_client() {
+	# Install the generator if not present
+	if ! pip show openapi-python-client >/dev/null 2>&1; then
+		pip install openapi-python-client
+		echo "openapi-python-client installed."
+	fi
 
-source "$VENV_DIR/bin/activate"
-echo "Virtual environment activated."
+	if [ -d "$CLIENT_DIR" ]; then
+		echo "The folder $CLIENT_DIR already exists. Regenerating..."
+		rm -rf "$CLIENT_DIR" || true
+		openapi-python-client generate --url "$OPENAPI_URL" --output-path "$CLIENT_DIR" --overwrite
+		echo "immich-client regenerated."
+	else
+		openapi-python-client generate --url "$OPENAPI_URL" --output-path "$CLIENT_DIR"
+		echo "immich-client generated."
+	fi
 
-if [ -f "$REPO_ROOT/requirements.txt" ]; then
-    pip install --upgrade pip
-    # Install dependencies except the local client
-    grep -v '^immich-client' "$REPO_ROOT/requirements.txt" | grep -v '^#' | xargs -r pip install
-    echo "Dependencies installed."
-else
-    echo "requirements.txt not found."
-fi
+	if [ ! -d "$CLIENT_DIR" ]; then
+		echo "The folder $CLIENT_DIR was not found."
+		exit 1
+	fi
+	pip install -e "$CLIENT_DIR"
+	echo "Local immich-client installed."
+}
 
+# --- MAIN ---
+main() {
+	parse_args "$@"
 
-# Install the generator if not present
-if ! pip show openapi-python-client > /dev/null 2>&1; then
-    pip install openapi-python-client
-    echo "openapi-python-client installed."
-fi
+	if [ "$SHOW_HELP" = "1" ]; then
+		print_help
+		exit 0
+	fi
 
-# Generate the client only if the folder does not exist at the root
-if [ ! -d "$CLIENT_DIR" ]; then
-    openapi-python-client generate --url "$OPENAPI_URL" --output-path "$CLIENT_DIR"
-    echo "immich-client generated."
-else
-    echo "The folder $CLIENT_DIR already exists. Regenerating..."
-    rm -rf "$CLIENT_DIR" || true
-    openapi-python-client generate --url "$OPENAPI_URL" --output-path "$CLIENT_DIR" --overwrite
-    echo "immich-client regenerated."
-fi
+	init_paths
 
-# Install the local client if the folder exists at the root
-if [ -d "$CLIENT_DIR" ]; then
-    pip install -e "$CLIENT_DIR"
-    echo "Local immich-client installed."
-else
-    echo "The folder $CLIENT_DIR was not found."
-    exit 1
-fi
+	if [ "$CLEAN" = "1" ]; then
+		clean_env
+	fi
+
+	# Get the appropriate OpenAPI URL
+	get_openapi_url "$CONFIG_FILE"
+
+	create_venv
+	install_dependencies
+	generate_and_install_client
+}
+
+# --- EXECUTION ---
+main "$@"

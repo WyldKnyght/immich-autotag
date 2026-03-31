@@ -1,41 +1,114 @@
-# internal_config.py
-# Centralizes internal variables and global project configuration.
+from immich_autotag.logging.levels import LogLevel
 
-# ==================== INTERNAL VARIABLES (DO NOT EDIT) ====================
-# These variables are automatically derived and should not be edited by the user.
+from ._internal_types import ErrorHandlingMode
 
-from typeguard import typechecked
-
-
-@typechecked
-def _get_host_and_port() -> tuple[str, int]:
-    # Get host and port from the experimental config singleton
-    from immich_autotag.config.manager import (
-        ConfigManager,
-    )
-
-    manager = ConfigManager.get_instance()
-    if not manager or not manager.config or not manager.config.server:
-        raise RuntimeError("ConfigManager or server config not initialized")
-    return manager.config.server.host, manager.config.server.port
+# ==================== API CACHE CONTROL (PER TYPE) ====================
+# Control cache usage for each entity type (developer/debug only)
+USE_CACHE_ASSETS = False
+USE_CACHE_ALBUMS = USE_CACHE_ASSETS
+USE_CACHE_ALBUM_PAGES = USE_CACHE_ASSETS
+USE_CACHE_USERS = USE_CACHE_ASSETS
 
 
-@typechecked
-def get_immich_web_base_url() -> str:
-    host, port = _get_host_and_port()
-    return f"http://{host}:{port}"
-
-
-def get_immich_base_url():
-    # In the future, IMMICH_HOST and IMMICH_PORT will be loaded dynamically from a singleton
-    return f"{get_immich_web_base_url()}/api"
-
-
-IMMICH_PHOTO_PATH_TEMPLATE = "/photos/{id}"
-# ==================== LOG CONFIGURATION ====================
-PRINT_ASSET_DETAILS = False  # Set to True to enable detailed per-asset logging
+# ==================== MULTITHREADING / CONCURRENCY ====================
 # Control whether to use ThreadPoolExecutor for asset processing, regardless of MAX_WORKERS value.
 # If False, always use direct loop (sequential). If True, use thread pool even for MAX_WORKERS=1.
 USE_THREADPOOL = False  # Set to True to force thread pool usage, False for direct loop
 # Sequential mode is usually faster for this workload, but you can experiment with USE_THREADPOOL for benchmarking.
 MAX_WORKERS = 1  # Set to 1 for sequential processing (recommended for best performance in this environment)
+
+# ==================== DEBUGGING / PROFILING / PERFORMANCE ====================
+# Error handling mode (affects debug/trace behavior)
+DEFAULT_ERROR_MODE = ErrorHandlingMode.USER
+# Enable cProfile CPU profiling regardless of error mode
+ENABLE_PROFILING = False  # Set to True to enable cProfile profiling
+# Enable tracemalloc memory profiling
+ENABLE_MEMORY_PROFILING = False  # Set to False to disable tracemalloc memory profiling
+
+# ==================== MEMORY CONTROL ====================
+# Control whether assets are kept in memory (True = keep in memory, False = release after use)
+KEEP_ASSETS_IN_MEMORY = False  # Default False; set to True to keep assets in memory
+
+# ==================== ALBUM HANDLING / THRESHOLDS ====================
+# Number of errors in the window required to mark an album unavailable
+ALBUM_ERROR_THRESHOLD = 3
+# Window (seconds) in which errors are counted for the threshold (default: 24 hours)
+ALBUM_ERROR_WINDOW_SECONDS = 24 * 3600
+# Global threshold: if this many albums are marked unavailable during a run,
+# take global action (in DEVELOPMENT this causes fail-fast; in PRODUCTION we log a summary).
+GLOBAL_UNAVAILABLE_THRESHOLD = 5
+# Enable/disable merging albums with the same name
+MERGE_DUPLICATE_ALBUMS_ENABLED = (
+    True  # Change to True to enable merging of duplicate albums
+)
+
+# ==================== LOGGING CONTROL FOR DEVELOPMENT/CI ====================
+# If set to a log level string (e.g., 'DEBUG', 'INFO', 'PROGRESS', 'FOCUS'),
+# this will force the global log level for the app, ignoring any other logic.
+# If None, normal logic applies.
+FORCED_LOG_LEVEL = (
+    LogLevel.PROGRESS
+)  # Change to 'DEBUG' to force massive logging in development/CI
+
+# ==================== ARCHITECTURE IMPORT HOOK CONTROL ====================
+# Set to True to enable architecture import hook, False to disable enforcement
+ENABLE_ARCHITECTURE_IMPORT_HOOK = True
+
+# ==================== CONVERSIONS AT STARTUP ====================
+# Controls whether all conversions are applied to assets at application startup
+APPLY_CONVERSIONS_AT_START = False  # Set to False to disable mass processing at startup
+
+# ==================== CONVERSION OVERRIDES ====================
+# If set (True/False), this will override user config's conversions.enabled value.
+# If None, user config value is used.
+FORCE_ENABLE_TAG_CONVERSIONS: bool | None = None
+
+# ==================== MAINTENANCE: DELETE CONFLICT TAGS ====================
+# If False, disables the maintenance_delete_conflict_tags function (prevents accidental mass deletion)
+ENABLE_MAINTENANCE_DELETE_CONFLICT_TAGS = False  # Default: disabled for safety
+# ==================== MAINTENANCE: ALBUM CLEANUP RESCUE ====================
+# If True, enables the one-time album cleanup rescue operation (disables asset processing)
+ENABLE_ALBUM_CLEANUP_RESCUE = False  # Default: disabled for safety
+
+# ==================== FORCED LIMITS FOR CI/DEV ====================
+# If set to an integer, this value will override any user config for max items to process.
+# If set to None, normal config/user value is used.
+FORCE_MAX_ITEMS_TO_PROCESS: int | None = None  # Limit for fast performance tests
+# ==================== FILTER OVERRIDES FOR DEV/CI ====================
+# If set, this asset UUID will be injected as a filter override in user config (for testing/dev convenience).
+# Example: "4cc4171f-f8a5-47eb-bbc1-a4834cc51bce"
+
+FILTER_OVERRIDE_ASSET_UUID: str | None = None
+
+# ==================== ERROR HANDLING OVERRIDES ====================
+# If set (True/False), this will override user config's fail_fast_on_asset_errors.
+# If None, user config value is used.
+# Set to False to enable fault-tolerant mode (continue processing on errors) for large batch runs.
+FORCE_FAIL_FAST_ON_ASSET_ERRORS: bool | None = None
+
+# ==================== ALBUM DETECTION OVERRIDES ====================
+# If set (True/False), this will override user config's
+# album_detection_from_folders.enabled value.
+# Set to False to disable inferring/creating albums from containing folders
+# across development, CI, and normal runs without touching user config files.
+FORCE_ENABLE_ALBUM_DETECTION_FROM_FOLDERS: bool | None = None
+
+# ==================== ALBUM ASSIGNMENT OVERRIDES ====================
+# If set (True/False), this enables or disables the album assignment phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_ALBUM_ASSIGNMENT: bool | None = None
+
+# ==================== CLASSIFICATION VALIDATION OVERRIDES ====================
+# If set (True/False), this enables or disables the classification validation phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_CLASSIFICATION_VALIDATION: bool | None = None
+
+# ==================== DUPLICATE TAG ANALYSIS OVERRIDES ====================
+# If set (True/False), this enables or disables duplicate classification tag analysis.
+# If None, normal processing flow is used.
+FORCE_ENABLE_DUPLICATE_TAG_ANALYSIS: bool | None = None
+
+# ==================== ALBUM DATE CONSISTENCY OVERRIDES ====================
+# If set (True/False), this enables or disables the album date consistency check phase.
+# If None, normal processing flow is used.
+FORCE_ENABLE_ALBUM_DATE_CONSISTENCY: bool | None = None

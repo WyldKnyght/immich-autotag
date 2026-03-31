@@ -1,15 +1,21 @@
-from typeguard import typechecked
-
 """
 run_statistics.py
 
 Data model for execution statistics, serializable to YAML.
 """
+
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from typeguard import typechecked
+
+from immich_autotag.report.modification_kind import ModificationKind
+from immich_autotag.run_output.manager import RunOutputManager
+from immich_autotag.statistics.constants import RUN_STATISTICS_FILENAME
+from immich_autotag.tags.tag_response_wrapper import TagWrapper
 
 
 # Strict typing for output tag counters
@@ -17,6 +23,8 @@ class OutputTagCounter(BaseModel):
     total: int = 0
     added: int = 0
     removed: int = 0
+    removed_globally: int = 0  # Count of global removals (maintenance cleanup)
+    created: int = 0  # Count of tag creations
     errors: int = 0  # New: count errors for this tag
 
 
@@ -29,11 +37,14 @@ class OutputAlbumCounter(BaseModel):
 
 
 class RunStatistics(BaseModel):
+
     git_describe_runtime: Optional[str] = Field(
-        None, description="Git describe string obtained at runtime (from GitPython, may be empty in containers)"
+        None,
+        description="Git describe string obtained at runtime (from GitPython, may be empty in containers)",
     )
     git_describe_package: Optional[str] = Field(
-        None, description="Git describe string from the distributed package (from version.py, always present)"
+        None,
+        description="Git describe string from the distributed package (from version.py, always present)",
     )
     album_date_mismatch_count: int = Field(
         0, description="Count of album/date mismatches"
@@ -57,9 +68,17 @@ class RunStatistics(BaseModel):
     )
     count: int = Field(0, description="Number of processed assets")
     started_at: Optional[datetime] = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        None,
+        description="Datetime when asset processing started (set by initialize_for_run)",
     )
     finished_at: Optional[datetime] = None
+    abrupt_exit_at: Optional[datetime] = Field(
+        None, description="Datetime when an abrupt exit occurred (if any)"
+    )
+    previous_sessions_time: Optional[float] = Field(
+        None,
+        description="Accumulated time (seconds) of previous sessions for this run. Can be None if no previous data is available.",
+    )
     extra: Dict[str, Any] = Field(
         default_factory=dict, description="Extensible field for future stats"
     )
@@ -74,6 +93,36 @@ class RunStatistics(BaseModel):
         description="Textual description of current progress (percentage, estimated time, etc.)",
     )
 
+    # Event counters by type (key: str, value: int)
+    event_counters: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Event counters by ModificationKind (string key)",
+    )
+
+    @model_validator(mode="after")
+    def initialize_started_at_if_none(self) -> "RunStatistics":
+        """Initialize started_at to now if it's None (for new runs)."""
+        if self.started_at is None:
+            self.started_at = datetime.now(timezone.utc)
+        return self
+
+    @typechecked
+    def increment_event(
+        self, event_kind: ModificationKind, extra_key: "TagWrapper | None" = None
+    ) -> None:
+        """
+        Increment the counter for the given event kind (ModificationKind).
+        If extra_key (TagWrapper) is provided, it is concatenated to the event_kind name for per-key statistics.
+        """
+        key = event_kind.name
+        if extra_key is not None:
+            # Use the tag name
+            extra_val = extra_key.get_name()
+            key = f"{key}_{extra_val}"
+        if key not in self.event_counters:
+            self.event_counters[key] = 0
+        self.event_counters[key] += 1
+
     @typechecked
     def to_yaml(self) -> str:
         return yaml.safe_dump(
@@ -84,17 +133,41 @@ class RunStatistics(BaseModel):
         )
 
     @classmethod
-    @typechecked
-    def from_yaml(cls, path: 'Path') -> "RunStatistics":
-        from pathlib import Path
-        if not isinstance(path, Path):
-            raise TypeError("from_yaml only accepts a Path object as input.")
+    def from_yaml(cls, path: Path) -> "RunStatistics":
+        # Path is always a Path instance; type check removed
         if not path.exists():
-            raise FileNotFoundError(f"File not found: {path}")
+            raise FileNotFoundError(
+                f"File not found: {path} (expected {RUN_STATISTICS_FILENAME})"
+            )
         with path.open("r", encoding="utf-8") as f:
             data = f.read()
         loaded = yaml.safe_load(data)
         if loaded is None:
             # Empty or invalid file: raise an explicit error
-            raise ValueError("run_statistics.yaml is empty or invalid; cannot create RunStatistics instance.")
+            raise ValueError(
+                f"{RUN_STATISTICS_FILENAME} is empty or invalid; cannot create RunStatistics instance."
+            )
         return cls.model_validate(loaded)
+
+    @typechecked
+    def get_total_to_process(self) -> int | None:
+        if self.total_assets is None:
+            return None
+        skip = self.skip_n or 0
+        return max(1, self.total_assets - skip)
+
+    @typechecked
+    def get_start_time(self) -> float:
+        # started_at is guaranteed to be set by model_validator
+        if self.started_at is None:
+            raise RuntimeError(
+                "Internal error: started_at should have been initialized by model_validator"
+            )
+        return self.started_at.timestamp()
+
+    @typechecked
+    def save_to_file(self) -> None:
+        run_execution = RunOutputManager.current().get_run_output_dir()
+        stats_path = run_execution.get_run_statistics_path()
+        with open(stats_path, "w", encoding="utf-8") as f:
+            f.write(self.to_yaml())

@@ -13,10 +13,10 @@ class TagConversions:
     @staticmethod
     def from_config_manager() -> "TagConversions":
         config_manager = ConfigManager.get_instance()
-        config = config_manager.config
-        if not config or not hasattr(config, "conversions"):
-            raise RuntimeError("No conversions found in configuration.")
-        wrappers = [ConversionWrapper(conv) for conv in config.conversions]
+        config = config_manager.get_config()
+        if not config.conversions.enabled:
+            return TagConversions([])
+        wrappers = [ConversionWrapper(conv) for conv in config.conversions.conversions]
         return TagConversions(wrappers)
 
     def get_all(self) -> List[ConversionWrapper]:

@@ -1,0 +1,73 @@
+from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrapper
+from immich_autotag.albums.albums.album_collection_wrapper import AlbumCollectionWrapper
+from immich_autotag.context.immich_context import ImmichContext
+from immich_autotag.logging.levels import LogLevel
+from immich_autotag.logging.utils import log
+from immich_autotag.report.modification_entries_list import ModificationEntriesList
+from immich_autotag.report.modification_entry import ModificationEntry
+from immich_autotag.types.client_types import ImmichClient
+
+
+def _delete_album(
+    album: AlbumResponseWrapper,
+    client: ImmichClient,
+    albums_collection: AlbumCollectionWrapper,
+) -> ModificationEntry:
+    """
+    Deletes the album using the AlbumCollectionWrapper API.
+    """
+
+    return albums_collection.delete_album(
+        wrapper=album,
+        client=client,
+        reason="Unhealthy temporary album deleted automatically",
+    )
+
+
+def delete_unhealthy_temp_albums(context: ImmichContext) -> ModificationEntriesList:
+    """
+    Iterates all albums, finds temporary ones, checks health, and deletes those that are unhealthy.
+    Returns the number of deleted albums.
+    """
+    client = context.get_client_wrapper().get_client()
+    albums_collection = context.get_albums_collection()
+    albums = albums_collection.get_albums()
+    modifications: list[ModificationEntry] = []
+
+    from immich_autotag.assets.albums.temporary_manager.health import (
+        is_temporary_album_healthy,
+    )
+    from immich_autotag.utils.perf.performance_tracker import PerformanceTracker
+
+    total = len(albums)
+    tracker = PerformanceTracker.from_total(total)
+
+    for idx, album in enumerate(albums, 1):
+        if album.is_temporary_album() and not is_temporary_album_healthy(album):
+            mod = _delete_album(album, client, albums_collection)
+            modifications.append(mod)
+            # Always log deletion
+            log(
+                f"[PROGRESS] [ALBUM-DELETE] Deleted unhealthy temporary album: '{album.get_album_name()}' (UUID: {album.get_album_uuid()})",
+                level=LogLevel.PROGRESS,
+            )
+        # Detailed progress log at tracker intervals
+        if tracker.should_log_progress(idx):
+            progress_msg = tracker.get_progress_description(idx)
+            log(
+                f"[ALBUM-DELETE][PROGRESS] {progress_msg} | checking temporary album: '{album.get_album_name()}' (UUID: {album.get_album_uuid()})",
+                level=LogLevel.PROGRESS,
+            )
+
+    count = len(modifications)
+    if count > 0:
+        log(
+            f"[MAINTENANCE] Deleted {count} unhealthy temporary albums (reason: not healthy, e.g. assets too far apart in time or empty)",
+            level=LogLevel.PROGRESS,
+        )
+    else:
+        log(
+            "[MAINTENANCE] No unhealthy temporary albums found for deletion.",
+            level=LogLevel.PROGRESS,
+        )
+    return ModificationEntriesList(entries=modifications)

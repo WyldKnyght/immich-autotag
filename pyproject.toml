@@ -1,6 +1,6 @@
 [project]
 name = "immich-autotag"
-version = "0.71.0"
+version = "0.80.3"
 description = "Immich autotagging and album management system"
 authors = [
 	{ name = "txemi", email = "txemitron@gmail.com" }
@@ -27,7 +27,7 @@ dependencies = [
 	"pandas>=1.3.0",
 	"pyyaml",
 	"pydantic",
-	# Dependencias explícitas para immich_client
+	# Explicit dependencies for immich_client
 	"certifi",
 	"idna",
 	"typing_extensions",
@@ -43,7 +43,7 @@ dependencies = [
 include = ["immich_autotag*", "immich_client*"]
 
 [project.scripts]
-immich-autotag = "immich_autotag.entrypoint:run_main"
+immich-autotag = "immich_autotag.main_entrypoint:run_main"
 
 # ---- Formatting tools configuration ----
 # These sections ensure consistent formatting across all environments and contributors.
@@ -64,3 +64,22 @@ profile = "black"
 line_length = 88
 # Skip these directories when sorting imports (virtualenv, generated, or external code).
 skip = [".venv", "immich-client", "scripts"]
+
+[tool.ruff]
+# Ruff configuration: keep defaults minimal here; CI can add stricter rules.
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = ["E", "F", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"immich_autotag/entrypoints/main_entrypoint.py" = ["E402"]
+
+[project.optional-dependencies]
+dev = [
+	"ruff",
+	"black",
+	"isort",
+	"flake8",
+	"mypy",
+]

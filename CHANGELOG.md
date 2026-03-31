@@ -1,6 +1,15 @@
+
 # Changelog
 
-All versions follow [Semantic Versioning](https://semver.org/).
+
+
+All versions follow [Semantic Versioning](https://semver.org/). For details on how version digits are used and the meaning of Quality Gate points, see [`docs/dev/versioning_workflow.md`](docs/dev/versioning_workflow.md).
+
+**Convention:**
+- Functional or user-relevant changes (MAJOR/MINOR) are documented here.
+- Increments of the third digit (PATCH) can be used to mark internal milestones (e.g., Quality Gate) and do not require a detailed entry unless you want to explicitly record the milestone.
+
+
 
 
 ## [0.10] - 2025-12-23
@@ -55,6 +64,21 @@ All versions follow [Semantic Versioning](https://semver.org/).
 - The statistics file is now written immediately at application startup, ensuring it is always available for monitoring and debugging from the very beginning of each run.
 - All code, comments, and log messages are now in English for consistency and maintainability.
 
+
+
+## [0.47.0] 
+**Description:** [Convenience version, not a real product release] This version is used to register infrastructure, community, and automation features that were implemented incrementally and do not correspond to a real product release. Please improve this description if needed.
+### Added
+- Announcement and outreach tracking across platforms ([issue](docs/issues/0011-announcement-tracking/))
+- Documentation coordination and planning via docs-track branch ([issue](docs/issues/0020-docs-track-branch/))
+- System initialization and setup ([issue](docs/issues/0001-system-initialization/))
+- Local issue system adoption ([issue](docs/issues/0002-adopt-local-issue-system/))
+- Orphan albums and process refactor ([issue](docs/issues/0006-orphan-albums/), [issue](docs/issues/0007-refactor-process-single-asset/))
+- Cleanup and redeployment for public releases ([issue](docs/issues/0012-cleanup-redeploy/))
+- Git version traceability in statistics ([issue](docs/issues/0013-git-version-null-in-stats/))
+- Jenkins pipeline containerization ([issue](docs/issues/0014-jenkins-pipeline-containerization/))
+- GitHub Actions PyPI publishing ([issue](docs/issues/0015-github-actions-pypi-publishing/))
+
 ## [0.70.7-2-g8b496cb-dirty] - 2026-01-12
 **Description:** Work in progress: automating Python package and container generation using GitHub Actions and various improvements. Not final.
 ### Changed
@@ -63,6 +87,7 @@ All versions follow [Semantic Versioning](https://semver.org/).
 - Preparing a new release to publish these changes and facilitate community collaboration.
 
 ## [0.71.0] - 2026-01-14
+**Status:** ✅ Published (PyPI & Docker Hub) | ✅ Tested on Jenkins (240K+ assets)
 **Description:** GitHub Actions workflow enablement for automated PyPI and Docker Hub publishing.
 ### Added
 - **Automated PyPI publishing via GitHub Actions:** The release workflow now automatically publishes the package to PyPI when a version tag is created.
@@ -76,10 +101,466 @@ All versions follow [Semantic Versioning](https://semver.org/).
 - GitHub Actions workflow now works correctly without requiring access to a private Immich server or API credentials. ([GitHub Issue #32](https://github.com/txemi/immich-autotag/issues/32))
 
 
-## Unreleased
-**Description:** Adds automatic creation of daily albums for assets that do not belong to any album, using easily identifiable names for user review.
+## [0.72.0-rc1] - 2026-01-17
+**Status:** 🔖 Tagged (NOT published to PyPI/Docker)
+**Description:** Album permission groups - Phase 1 (detection and logging)
+**Release candidate - ready for testing**
+**Commit:** `d8a3b1a`
+**Branch:** `feature/user-group-policies`
+
 ### Added
-- Automatic creation of albums named by day (e.g., `Review YYYY-MM-DD`) for assets that are not assigned to any album, making it easy for users to review and organize unclassified photos by date.
+- **Album Permission Groups - Phase 1:** Detection system for albums matching configured keywords
+  - Detects which albums match configured user group keywords
+  - Phase 1 performs detection and logging only (no API calls)
+  - Foundation for Phase 2 synchronization
+  - Link: [issue 0018 — Album Permission Groups](docs/issues/0018-album-permission-groups/)
+
+### Features included
+- Configuration-based user groups with member lists
+- Keyword matching for album names
+- Detection reporting and logging
+- Dry-run mode for Phase 1
+
+### Known issues
+- None specific to Phase 1
+
+
+## [0.72.0-rc2] - 2026-01-17
+**Status:** 🔖 Tagged (NOT published to PyPI/Docker)
+**Description:** Album permission groups - Phase 2 (synchronization - FULLY FUNCTIONAL)
+**Release candidate - production ready, tested with 500+ albums**
+**Commit:** `c588cf7`
+**Branch:** `feature/user-group-policies`
+
+### Added
+- **Album Permission Groups - Phase 2:** Complete synchronization system for album member management
+  - Automatically adds configured members to matching albums
+  - Automatically removes members no longer in configuration
+  - Email→UUID resolution for member lookup
+  - Idempotent operations (safe to run multiple times)
+  - Link: [issue 0018 — Album Permission Groups](docs/issues/0018-album-permission-groups/)
+
+### Changed
+- Album permissions now execute BEFORE asset tagging for proper sequencing
+- Configuration is source of truth - only configured members have access
+
+### Fixed
+- Email address resolution for album member management
+- Proper handling of member additions and removals
+
+### Testing
+- ✅ Tested with 500+ albums, 3 members per group
+- ✅ Verified idempotent behavior
+- ✅ All permission changes applied correctly
+
+### Known issues
+- None specific to Phase 2
+
+
+## [0.73.0-rc1] - 2026-01-17
+**Status:** 🔖 Tagged (NOT published to PyPI/Docker)
+**Description:** Type system centralization and authentication fixes
+**Release candidate**
+**Commit:** `9c8e660`
+**Branch:** `feat/album-permission-groups`
+
+### Added
+- **Client Type Centralization:** Unified `ImmichClient` type definition
+  - New `immich_autotag/types.py` with canonical type alias
+  - Eliminates scattered imports across codebase
+  - Single source of truth for client configuration
+
+### Fixed
+- **AuthenticatedClient Configuration:** Immich-specific headers now correct
+  - Changed from default "Bearer" token to "x-api-key" header format
+  - Fixes 401 Unauthorized errors
+  - Immich API now properly authenticated
+- **Email→UUID Resolution:** New mapping system for album member emails
+  - Converts configured member emails to Immich system user IDs
+  - Prevents "badly formed hexadecimal UUID" errors
+  - Essential foundation for Phase 2 synchronization
+
+### Changed
+- All code now uses centralized `ImmichClient` type
+- ConfigManager initialization improved with better error handling
+
+### Technical debt reduced
+- Removed type inconsistencies across codebase
+- Proper Immich API parameter handling
+
+
+## [0.73.0-rc2] - 2026-01-17
+**Status:** 🔖 Tagged (NOT published to PyPI/Docker)
+**Description:** Lazy-loading optimization and performance improvements
+**Release candidate**
+**Commit:** `ce834f8`
+**Branch:** `perf/symmetric-rules-with-performance`
+
+### Added
+- **Lazy-Loading Optimization:** Asset tag data loaded on-demand
+  - Significant memory and API call reduction
+  - Faster initial asset retrieval
+  - Conditional type checking for production performance (~50% speedup possible)
+
+### Changed
+- Asset tag loading now lazy (not eagerly fetched)
+- Checkpoint save frequency optimized (every 100 assets vs every asset)
+- Asset update operations batched to reduce API calls
+
+### Performance improvements
+- Reduced API call count during asset processing
+- Lower memory footprint for large asset sets
+- Faster test execution time
+
+### Known issues
+- **Performance regression under investigation:** Some production runs show 4h→14-15h slowdown
+  - Possible causes: increased album creation count, per-asset code changes
+  - Under analysis in [issue 0021 — Profiling & Performance Reports](docs/issues/0021-profiling-performance/)
+  - CI profiling enabled on dedicated branch
+
+
+## [0.73.0-rc3] - 2026-01-17
+**Status:** 🔖 Tagged (NOT published to PyPI/Docker)
+**Description:** Automatic album creation from unclassified assets
+**Release candidate**
+**Commit:** `01370f3`
+**Branch:** `feature/auto-album-creation-from-date`
+
+### Added
+- **Auto-Album Creation:** New feature for organizing unclassified assets
+  - Automatically creates albums named by date (e.g., `Review YYYY-MM-DD`)
+  - Creates albums for assets not assigned to any classification
+  - Makes it easy for users to review and organize unclassified photos
+  - Configurable via `create_album_from_date_if_missing` setting
+
+### Changed
+- Album decision logic refactored for better clarity
+- Temporary albums created for assets without classification matches
+
+### Features
+- ImmichContext now uses singleton pattern for consistent state
+- Album creation workflow integrated into main processing pipeline
+
+
+## [0.73.0-rc4] - 2026-01-17
+**Status:** 🔖 Tagged (NOT published to PyPI/Docker)
+**Description:** Classification engine improvements - OR logic for rules
+**Release candidate**
+**Commit:** `1451649`
+**Branch:** `feature/rules-tag-album-combination`
+
+### Added
+- **Classification Rule Engine Enhancements:** OR logic for flexible rule matching
+  - ClassificationRule now supports OR logic for combined criteria
+  - Multiple tags or albums can match with OR semantics
+  - Improved conflict handling for duplicate assets
+  - Better logging of classification decisions
+
+### Changed
+- ClassificationRuleWrapper validation now uses OR logic
+- Conflict handling improved with classification conflict tags
+- Modification reports now include all classification decisions
+
+### Fixed
+- Duplicate asset conflict resolution improved
+- Classification conflicts now logged with better context
+
+### Features
+- Links generated include input tags from classification rules
+- Auto-album creation from asset date when no classification found
+
+
+## [0.73.0] - 2026-01-17
+**Status:** 🔖 Tagged (NOT published to PyPI/Docker yet)
+**Description:** Complete release - Album permissions, type system, performance, auto-album creation (v0.72 + v0.73 consolidated)
+**Release candidate → Release**
+**Commit:** `3fa53c6`
+**Branch:** `feat/album-permission-groups` (current HEAD)
+
+### Summary
+This release consolidates significant work across 5 major feature areas:
+1. ✅ Album permission groups (Phase 1+2, fully functional with 500+ album testing)
+2. ✅ Type system centralization (Immich API fixes)
+3. ✅ Performance optimizations (lazy-loading, checkpoint optimization)
+4. ✅ Auto-album creation (for unclassified assets)
+5. ✅ Classification engine improvements (OR logic, better conflict handling)
+
+### Added
+- **Configuration Internationalization:** Template now fully in English
+  - User group names and examples translated
+  - Configuration now suitable for international users
+  - Link: docs/issues/0018-album-permission-groups/
+
+- **Release Scripts Clarity:** Script documentation improved
+  - `release.sh`: Version + tagging only (no publishing)
+  - `full_release.sh`: Complete pipeline (version + PyPI + Docker)
+  - Clear distinction prevents accidental public releases
+
+- **Git Hygiene:** Profiling artifacts removed from repository
+  - Removed `profile(1).stats` and `profile_optimized.stats`
+  - Updated `.gitignore` to prevent future commits
+
+### Changed
+- All code comments and configuration now in English
+- Script headers document PURPOSE and USE WHEN
+- Release process clearly separated into two distinct modes
+
+### Breaking changes
+- None (config format compatible with v0.71.0)
+
+### Known issues
+- **Performance regression under investigation:** 4h→14-15h slowdown on profiling tests
+  - Root cause not yet confirmed
+  - Possible contributing factors: increased album creation, code changes per-asset
+  - Being tracked and analyzed in [issue 0021](docs/issues/0021-profiling-performance/)
+  - CI profiling enabled on dedicated branch
+  - Impact: unknown which users/datasets affected, reproduction in progress
+
+### Testing
+- ✅ Album permissions Phase 1+2 tested with 500+ albums
+- ✅ Type system validated with corrected Immich API calls
+- ✅ Auto-album creation verified
+- ✅ All Python code formatted and sorted
+- ⚠️ Performance regression requires further investigation
+
+### Next steps
+- Resolution of performance regression (v0.74.0 focus)
+- Further optimization of lazy-loading
+- Potential PyPI/Docker publishing after performance stabilization
+
+
+## [0.74.0-rc1] - 2026-01-18
+- **Status:** 🔄 Release candidate (stabilization branch)
+- **Description:** Major refactor, robustness and improvements in error handling, logging, and statistics. Preparation for stable release and documentation update.
+
+### Changed
+- Deep refactor of [album and asset management](docs/issues/0004-album-detection/): better encapsulation, singleton patterns, and improved collection/cache management.
+- Centralized and more robust [error handling](docs/issues/0004-album-detection/): error handling mode is now configurable and consistent throughout the album asset removal flow.
+- [Logging system improvements](docs/issues/0020-docs-track-branch/): clearer messages, better traceability, and new log levels for warnings and important events.
+- Refactor and cleanup of imports, type hints, and annotations across the codebase for maintainability and robustness.
+- Improved [configuration management and validation](docs/issues/0009-config-system-refactor/): stricter Pydantic models, additional validations, and clearer error handling in ConfigManager.
+- [Statistics and event logic improvements](docs/issues/0008-statistics-checkpoint/): now supports incremental event logging and per-key statistics.
+- Cleanup and standardization of constant names and album/tag patterns in user configuration.
+- Improved handling of [temporary albums](docs/issues/0016-auto-album-creation/) and removal logic, with warnings instead of fatal errors where appropriate.
+- .gitignore and formatting scripts updated for better repository hygiene.
+
+### Fixed
+- Fixed errors in UUID conversion and [asset handling in albums](docs/issues/0004-album-detection/).
+- Fixed imports and type references in multiple modules.
+- Fixed validation and matching logic in [classification rules and conversions](docs/issues/0017-rules-tag-album-combination/).
+- Fixed errors in dynamic configuration loading and exception handling.
+
+### Added
+- New methods and utilities for [statistics, event management, and modification reports](docs/issues/0008-statistics-checkpoint/).
+- Support for optional description field in Conversion model.
+- Improved welcome link generation and detection of configured tags.
+- Improved internal documentation and code comments throughout the codebase.
+
+### Technical debt reduced
+- Removal of legacy wrappers and unused methods.
+- Unified validation logic and encapsulation of internal methods.
+
+### Next steps
+- Final stabilization and documentation update for the next public release.
+- Full validation on 240K+ asset dataset before PyPI/Docker publication.
+
+## [Next Priority: Full Test Battery & Publishing]
+**Status:** 🔄 In Progress
+**Type:** Pre-release validation
+**Description:** Complete test battery run on 240K+ assets for v0.72.0-rc1 through v0.73.0 before publishing to PyPI and Docker Hub.
+
+### Objective
+Run full integration tests on current codebase (feat/album-permission-groups + merged features) to validate:
+- Album permission groups Phase 1+2 with large dataset
+- Lazy-loading performance with 240K+ assets  
+- Auto-album creation and classification stability
+- No regressions from v0.71.0
+
+### Blocker
+- ⚠️ **Performance regression (issue 0021):** Must investigate and resolve 4h→14-15h slowdown before publication
+  - Current hypothesis: album creation frequency, per-asset code changes
+  - Root cause identification required before release
+
+### Next steps after validation
+1. ✅ Confirm all tests pass on 240K+ asset dataset
+2. 🔖 Create v0.72.0 and v0.73.0 final tags (replacing RC tags)
+3. 📦 Publish to PyPI and Docker Hub
+4. 📢 Announce release with major feature highlights:
+   - Album permission groups (enterprise feature)
+   - Type system stabilization
+   - Performance improvements (pending resolution of regression)
+
+### Tracking
+- Link: [issue 0021 — Profiling & Performance Reports](docs/issues/0021-profiling-performance/)
+- Current blockers: Performance regression analysis
+
+
+
+
+## [0.74.0] - 2026-01-21
+**Status:** 🔖 Tagged (not published)  
+**Description:** Major refactors, error handling improvements, YAML config generation, logging/statistics enhancements, and documentation updates.
+
+> **Note:** The tag `v0.74.0` was created manually at commit `75f3dd380d7d15ed4707d775ae231b9eaa050338` (Jenkins-tested). Previous tag attempts were corrected to ensure the tag matches the commit actually validated in CI. See Jenkins log #45 for test evidence.
+
+### Added
+- **Automatic album creation and assignment (FB-001):** Logging of unmatched albums in user configuration ([issue](docs/issues/0016-auto-album-creation/))
+- **Rule-based classification engine (FB-002):** Enhanced user configuration template: improved skip options and album permissions ([issue](docs/issues/0017-rules-tag-album-combination/))
+- **Batch tag/album conversions (FB-009):** Batch tag/album conversions feature added to README ([issue](docs/issues/0022-batch-tag-album-conversions/))
+- **Modification and statistics logs (FB-007):** YAML configuration generator with comments from Pydantic model descriptions ([issue](docs/issues/0009-config-system-refactor/))
+
+### Changed
+- **Modification and statistics logs (FB-007):** Major refactor of asset processing, statistics checkpoint, and configuration management for clarity and maintainability ([issue](docs/issues/0008-statistics-checkpoint/))
+- **Automatic date correction (FB-004):** Improved error handling: centralized error handling mode, better error categorization, and type checking ([issue](docs/issues/0019-album-date-consistency-config/))
+- **Automatic album creation and assignment (FB-001):** Enhanced previous execution statistics validation and skip_n configuration ([issue](docs/issues/0016-auto-album-creation/))
+- **Modification and statistics logs (FB-007):** Improved code formatting, import organization, and comments across multiple modules
+- **Continuous or scheduled tagging (FB-008):** Continuous tagging feature description updated for clarity and scheduling options ([issue](docs/issues/0021-profiling-performance/))
+
+### Fixed
+- **Modification and statistics logs (FB-007):** Multiple bug fixes in YAML handling, error handling, and statistics logging
+- **Modification and statistics logs (FB-007):** Improved handling of configuration loading errors and validation
+- **Modification and statistics logs (FB-007):** Fixed missing imports and type annotations in several modules
+- **Modification and statistics logs (FB-007):** Fixed link formatting in README and removed outdated CI/CD note from CONTRIBUTING.md
+
+### Documentation
+- **Modification and statistics logs (FB-007):** Expanded and clarified practical use case steps in README
+- **Modification and statistics logs (FB-007):** Added link to Functional Blocks Matrix for structured feature overview
+- **Modification and statistics logs (FB-007):** Updated changelog and roadmap for new features and improvements
+
+### Known issues
+- **Modification and statistics logs (FB-007):** Performance regression under investigation (see previous release notes)
+- **Automatic date correction (FB-004):** Jenkins test run ended with an Immich API 500 error after 9.5h and 121,700 assets processed (see logs for details)
+
+### Testing
+- Jenkins pipeline: **processed 121,700 assets in 9.5 hours** before encountering an Immich API 500 error (see logs for details)
+  - **Test duration:** 9.5 hours
+  - **Assets processed:** 121,700
+- All new features and refactors tested on Jenkins with large asset sets
+- All Python code formatted and sorted
+
+### Commit
+- **Commit hash:** `75f3dd380d7d15ed4707d775ae231b9eaa050338` (Jenkins-tested, tag v0.74.0)
+
+
+## [0.74.1-qualitygate] - 2026-01-28
+**Status:** 🔖 Tagged (not published)
+**Description:** Quality Gate STANDARD passed. All blocking errors fixed after major refactor and stabilization.
+### Added
+- Quality Gate STANDARD fully passed: all blocking errors (formatting, linter, type, config) resolved after extensive refactor and stabilization.
+- E402 (import not at top of file) now ignored only for main_entrypoint.py as required by initialization logic.
+- pyproject.toml config cleaned and validated for all tools (ruff, isort, black).
+- All code auto-formatted and import-sorted; all CI/CD checks green.
+- This tag marks a milestone for maintainability and CI reliability.
+
+# [0.74.2] - 2026-01-29
+**Description:** Lowered Quality Gate strictness to unblock development and CI. This is a temporary change; stricter checks will be restored in a future version.
+### Changed
+- Quality Gate STANDARD requirements relaxed to allow progress on other features and fixes. All other code and configuration remain unchanged.
+
+
+## [0.74.3-qualitygate] - 2026-01-30
+**Status:** 🔖 Tagged (not published)
+**Description:** Quality Gate STANDARD passed. All blocking errors fixed after strong-typed IDs migration and maintainability improvements.
+### Added
+- Quality Gate STANDARD fully passed: all blocking errors (formatting, linter, type, config) resolved after strong-typed IDs migration and maintainability improvements.
+- All code auto-formatted and import-sorted; all CI/CD checks green.
+- This tag marks a milestone for maintainability, type safety, and CI reliability.
+
+## [0.74.4] - 2026-02-01
+**Description:** Quality Gate milestone - Python modular Quality Gate system fully operational with all checks passing in Jenkins CI/CD pipeline.
+### Added
+- Modular, object-oriented Python Quality Gate system replacing hardcoded Bash scripts. ([feature](scripts/devtools/quality_gate_py/))
+- Dynamic registration of custom log levels with automatic detection and validation. ([feature](immich_autotag/logging/))
+- Robust error handling in `jscpd` check with fallback to `npx` for environments without global installation.
+- Complete test coverage for Quality Gate checks with per-module validation.
+
+### Changed
+- Quality Gate now runs in modular Python (OO, attrs, enums) for better maintainability and extensibility.
+- Custom log levels (PROGRESS, ASSET_SUMMARY, FOCUS, TRACE) now auto-register without hardcoding.
+- Jenkins pipeline now installs `jscpd` globally via npm for code duplication detection.
+
+### Fixed
+- Fixed `jscpd` availability issue in Jenkins by adding `npm install -g jscpd` to dependency installation stage.
+- Improved robustness of Python Quality Gate with graceful fallbacks for missing tools.
+
+### Technical Notes
+- Git commit: `c276f9844b2b86884a85fc46d3b698e02d869e69`
+- Jenkins Quality Gate status: ✅ All checks passing
+- Ready for larger battery deployments and expanded CI/CD testing phases.
+
+## [0.74.5] - 2026-02-03
+**Description:** Internal milestone: all quality gates passed (flake8, black, ruff, mypy, architecture, no Spanish, etc). Modularization and workflow refactor complete. This tag marks a fully clean, compliant, and maintainable codebase.
+### Changed
+- All code passes the full Python quality gate (no warnings or errors).
+- Modularization, import rules, and developer workflow fully enforced.
+
+
+## [Planned: Unmatched Albums Report]
+**Description:** Adds a report listing all albums that do not match any user-defined rule, helping users identify albums that may need new rules or manual review.
+### Added
+- Generation of a report with all albums that are not matched by any user rule, making it easier to spot albums that require attention or new classification rules.
+
+## [Planned: Compilation Albums Support]
+**Description:** Adds support for "compilation" albums that can mix existing and newly added photos (for example, third-party or curated compilations). Classification behavior is relaxed for compilations so assets may belong to multiple albums or match multiple rules, while still providing validation warnings when an asset matches no rule.
+### Added
+- Support for "compilation" albums that combine existing and new photos, enabling curated or third-party collections.
+- Relaxed classification rules for compilation albums: assets may belong to multiple albums or match multiple rule sets to reflect overlapping selections.
+- A validation warning is generated when an asset in a compilation does not match any classification rule, helping users identify unclassified items.
+### Changed
+- Classification engine now supports multi-assignment semantics for assets within compilation albums; scoring and precedence logic adjusted to prefer stronger matches while allowing overlaps.
+
+## [Planned: Profiling & CI Performance Reports]
+**Description:** Add CI-integrated profiling and performance reporting so builds produce profiling artifacts and regressions can be detected automatically. See [issue 0021 — Profiling & Performance Reports](docs/issues/0021-profiling-performance/) for the issue details and implementation notes.
+### Added
+- CI jobs to run representative profiling workloads and archive CPU/memory profiles and flamegraphs.
+- Threshold-based regression detection that flags significant slowdowns in representative workloads.
+### Changed
+- CI pipelines updated to include a small profiling step for representative workloads (configuration and thresholds to be defined in the issue linked above).
+
+## [Planned: Code Quality Improvements (Sonar-like)]
+**Description:** Introduce automated static analysis and code-quality gates using SonarQube or similar tools, and apply initial remediation to address the most critical findings.
+### Added
+- CI job configuration to run static analysis (SonarQube / SonarCloud or equivalent) on pull requests and main branches.
+- A baseline report capturing current code quality metrics (bugs, vulnerabilities, code smells, coverage trends) to track improvement over time.
+- Documentation for developers on how to run local scans and interpret Sonar reports (basic onboarding instructions).
+### Changed
+- CI pipeline modified to fail or warn builds based on configurable quality gates (e.g., new blocker issues, decreasing coverage, or rapidly rising hotspot counts).
+- Project structure and packaging adjusted where necessary to enable more accurate analysis (e.g., excluding generated files, adding source roots for analyzers).
+### Fixed / Remediated (initial)
+- Addressed a prioritized subset of Sonar-style findings: high-priority security warnings and stability-related code smells reduced through targeted fixes and tests.
+
+
+
+
+# [0.74.6] - 2026-02-03
+**Description:** Quality Gate milestone with architecture import hook enforcement enabled (internal).
+### Changed
+- Architecture import hook is now forcibly enabled for all runs in this branch.
+- All previous Quality Gate requirements still pass with architecture enforcement active.
+
+
+## [0.80.0] - 2026-03-26
+**Status:** 🎯 **Major Release Milestone** — Stabilization roadmap established
+**Description:** User permissions and user groups, improved rule engine supporting both regex and simplified patterns, and major album-management safeguards. This release consolidates significant architectural improvements and marks the beginning of our stabilization phase toward v1.0.0
+
+### Added
+- **User Permissions & Groups:** Automatic assignment of permissions to users according to rules; creation and management of user groups for advanced access control; complete synchronization system (Phase 1 & Phase 2 from v0.72–v0.73 now consolidated and stable).
+- **Duplicate Album-Name Recovery:** Flow with cleanup and rename strategies to resolve same-name conflicts more safely.
+- **Configurable Execution Phases:** New internal execution toggles to enable/disable key phases independently (album assignment, classification validation, duplicate-tag analysis, album-date consistency, and tag conversions).
+- **Enhanced Rule Engine:** Improved abstraction supporting both regex patterns and simplified common use cases for flexible classification.
+- **Maintenance Features:** Support for unhealthy temporary album cleanup and improved traceability for album permission synchronization (including member emails in logs). 
+### Changed
+- **API Architecture Refactor:** API proxy and logging proxy layers reorganized into modular entrypoints (albums/assets/tags/users/server) for improved architectural boundaries and maintainability.
+- **Album/Asset Management:** Relationship handling reworked with dedicated managers (asset map, unavailable albums, duplicate albums, temporary albums) for clearer state handling and resilience.
+- **Cache Behavior:** Aligned with internal cache flags—when API cache is disabled, cache files are no longer read nor written.
+- **Configuration System Leverage:** Internal categorization flow adapted to fully utilize the configuration system from v0.25, enabling versatile categorizations based on multiple tags and flexible album patterns. ([issue](docs/issues/0009-config-system-refactor/))
+- **Feature Stabilization:** Experimental features from v0.20 now production-ready:
+  - Checkpoint resume (resume processing from last processed asset) is now stable and enabled by default. ([issue](docs/issues/0008-statistics-checkpoint/))
+  - Automatic album creation/assignment from file system library folders is now stable and enabled by default. ([issue](docs/issues/0004-album-detection/)) 
+### Fixed
+- Added dedicated error handling for asset-removal API failures to improve recovery behavior and diagnostics.
+- Improved duplicate-album conflict handling in album workflows, including conflict detection and safer rename paths.
+
 
 ## [Planned: Date Correction Improvements]
 **Description:** Planned improvements to date correction logic for edge cases and scenarios not currently handled correctly.
@@ -91,22 +572,7 @@ All versions follow [Semantic Versioning](https://semver.org/).
 ### Added
 - Refactored logic for automatic album creation, improving detection and assignment.
 
-## [Unreleased]
-**Description:** Improvements to the rule engine: more abstract, supports not only regex but also simplified common use cases.
-### Added
 
-- The internal categorization flow has been adapted to fully leverage the new configuration system introduced in v0.25, enabling more versatile categorizations based on multiple tags and flexible album patterns. ([issue](docs/issues/0009-config-system-refactor/))
-- Consolidation of experimental features from version 0.20:
-  - Resume processing from the last processed asset (checkpoint resume) is now stable and enabled by default. ([issue](docs/issues/0008-statistics-checkpoint/))
-  - Creation and assignment of albums based on folders from the file system library is now stable and enabled by default. ([issue](docs/issues/0004-album-detection/))
-
-
-
-## [Planned]
-**Description:** Automatic creation of user permissions and user groups based on the rule engine.
-### Added
-- Automatic assignment of permissions to users according to rules.
-- Creation and management of user groups for advanced access control.
 
 ## [1.0] - YYYY-MM-DD
 ### Added

@@ -1,17 +1,3 @@
-from typing import TYPE_CHECKING
-
-import git  # GitPython
-
-if TYPE_CHECKING:
-    from immich_autotag.albums.album_response_wrapper import AlbumResponseWrapper
-
-from typing import TYPE_CHECKING
-
-from typeguard import typechecked
-
-if TYPE_CHECKING:
-    from immich_autotag.albums.album_response_wrapper import AlbumResponseWrapper
-
 """
 statistics_manager.py
 
@@ -19,146 +5,220 @@ Core statistics management logic for tracking progress, statistics, and historic
 Handles YAML serialization, extensibility, and replaces legacy checkpoint logic.
 """
 
-
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
-
-if TYPE_CHECKING:
-    from immich_autotag.tags.tag_response_wrapper import TagWrapper
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from immich_autotag.tags.modification_kind import ModificationKind
-
 from threading import RLock
+from typing import TYPE_CHECKING, Optional
 
 import attr
+import git
+from typeguard import typechecked
 
+from immich_autotag.config.models import UserConfig  # GitPython
+from immich_autotag.types.uuid_wrappers import AssetUUID
 from immich_autotag.utils.perf.performance_tracker import PerformanceTracker
-from immich_autotag.utils.run_output_dir import get_run_output_dir
 
 from .checkpoint_manager import CheckpointManager
 from .run_statistics import RunStatistics
 from .tag_stats_manager import TagStatsManager
 
+if TYPE_CHECKING:
+    from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrapper
+    from immich_autotag.report.modification_kind import ModificationKind
+    from immich_autotag.tags.tag_response_wrapper import TagWrapper
+
 # Module singleton
 _instance = None
 
 
-@attr.s(auto_attribs=True, kw_only=True)
+@attr.s(auto_attribs=True, kw_only=True, slots=True)
 class StatisticsManager:
 
-    _perf_tracker: PerformanceTracker = attr.ib(default=None, init=False, repr=False)
-    stats_dir: Path = attr.ib(factory=get_run_output_dir, init=False, repr=False)
-    _instance: "StatisticsManager" = attr.ib(default=None, init=False, repr=False)
-    _lock: RLock = attr.ib(factory=RLock, init=False, repr=False)
+    #
+    # IMPORTANT NOTE ABOUT attrs AND THE LINTER:
+    #
+    # By convention, the constructor arguments for classes using attrs should be
+    # public (no leading underscore), even if the internal attributes are private
+    # (with leading underscore). attrs requires this to function correctly.
+    # If the linter (e.g., flake8, pylint, mypy) complains about the mismatch
+    # between public arguments and private attributes, silence the warning with a
+    # noqa or specific configuration, as this is the correct pattern with attrs.
+    # Example: pylint: disable=attribute-defined-outside-init
+    #
+    # Reference: https://www.attrs.org/en/stable/init.html#private-attributes
+    _perf_tracker: Optional[PerformanceTracker] = attr.ib(
+        default=None, init=False, repr=False
+    )  # noqa
+    _lock: RLock = attr.ib(factory=RLock, init=False, repr=False)  # noqa
     _current_stats: Optional[RunStatistics] = attr.ib(
         default=None, init=False, repr=False
-    )
-    _current_file: Optional[Path] = attr.ib(default=None, init=False, repr=False)
+    )  # noqa
 
+    _checkpoint: CheckpointManager = attr.ib(
+        default=None, init=False, repr=False
+    )  # noqa
+    _tags: TagStatsManager = attr.ib(default=None, init=False, repr=False)  # noqa
+
+    @typechecked
+    def _get_or_create_perf_tracker(self) -> PerformanceTracker:
+        if self._perf_tracker is not None:
+            return self._perf_tracker
+        total_assets = self.get_or_create_run_stats().total_assets
+        max_assets = self.get_or_create_run_stats().max_assets
+
+        self._perf_tracker = PerformanceTracker.from_args(
+            total_assets,
+            max_assets=max_assets,
+            skip_n=self.get_or_create_run_stats().skip_n,
+        )
+        return self._perf_tracker
+
+    @typechecked
+    def _set_skip_n(self) -> None:
+
+        skip_n = self._checkpoint.get_effective_skip_n()
+        with self._lock:
+
+            self.get_or_create_run_stats().skip_n = skip_n
+            self.save_to_file()
+            self._get_or_create_perf_tracker().set_skip_n(skip_n)
+
+    def _update_perf_tracker_max_assets(self, max_assets: int | None) -> None:
+        """
+        Update the value of max_assets in the PerformanceTracker if it exists.
+        """
+        perf_tracker = self._get_or_create_perf_tracker()
+        assert isinstance(perf_tracker, PerformanceTracker)
+        perf_tracker.set_max_assets(max_assets)
+
+    def _update_stats_max_assets(self) -> int | None:
+        """
+        Update the value of max_assets in the statistics and save the changes.
+        """
+        from immich_autotag.config.manager import ConfigManager
+
+        max_assets = ConfigManager.get_effective_max_items()
+        self.get_or_create_run_stats().max_assets = max_assets
+        self.save_to_file()
+        return max_assets
+
+    def _refresh_max_assets(self) -> int | None:
+        """
+        Refresh the value of max_assets from the effective configuration and update it in the statistics.
+        """
+        max_assets: int | None = self._update_stats_max_assets()
+        if max_assets is not None:
+            self._update_perf_tracker_max_assets(max_assets)
+        return max_assets
+
+    # Event counters are now stored in self._current_stats.event_counters
     def __attrs_post_init__(self) -> None:
         # The folder is already created by get_run_output_dir
+        # Singleton pattern: prevent direct instantiation when already instantiated
         global _instance
         if _instance is not None and _instance is not self:
-            raise RuntimeError(
-                "StatisticsManager instance already exists. Use StatisticsManager.get_instance() instead of creating a new one."
+            # Logging the use of reserved variable
+            print(
+                "[INFO] Reserved global variable _instance is in use for "
+                "singleton enforcement."
             )
+            raise RuntimeError(
+                "StatisticsManager instance already exists. "
+                "Use StatisticsManager.get_instance() instead of creating a new one."
+            )
+        # Logging assignment to reserved global variable
+        print("[INFO] Assigning self to reserved global variable _instance.")
         _instance = self
-        self.checkpoint = CheckpointManager(stats_manager=self)
-        self.tags = TagStatsManager(stats_manager=self)
-        self.checkpoint = CheckpointManager(stats_manager=self)
+        # Initialize declared attributes
+        self._checkpoint = CheckpointManager(stats_manager=self)
+        self._tags = TagStatsManager(self)
+        self._refresh_max_assets()
+        self._set_skip_n()
+
+    def save_to_file(self) -> None:
+        if self._current_stats:
+            # Always update progress_description before saving
+            self.get_or_create_run_stats().progress_description = (
+                self.get_progress_description()
+            )
+            self.get_or_create_run_stats().save_to_file()
+
+    @typechecked
+    def get_checkpoint_manager(self) -> CheckpointManager:
+        return self._checkpoint
+
+    @typechecked
+    def increment_event(
+        self, event_kind: "ModificationKind", extra_key: "TagWrapper | None" = None
+    ) -> None:
+        """
+        Increment the counter for the given event kind (ModificationKind).
+        If extra_key (TagWrapper) is provided, it is concatenated to the event_kind name
+        for per-key statistics.
+        """
+        with self._lock:
+
+            self.get_or_create_run_stats().increment_event(
+                event_kind, extra_key=extra_key
+            )
 
     @typechecked
     def get_progress_description(self) -> str:
-        from immich_autotag.utils.perf.progress_description import (
-            get_progress_description_from_perf_tracker,
-        )
+        count = self.get_or_create_run_stats().count
 
-        count = self._current_stats.count if self._current_stats else 0
-        return get_progress_description_from_perf_tracker(
-            self._perf_tracker, current_count=count
-        )
-
-    @typechecked
-    def _try_init_perf_tracker(self):
-        if self._perf_tracker is not None:
-            return
-        total = self._current_stats.total_assets or self._current_stats.max_assets
-        if total is not None:
-            import time
-
-            from immich_autotag.utils.perf.estimator import AdaptiveTimeEstimator
-            from immich_autotag.utils.perf.time_estimation_mode import (
-                TimeEstimationMode,
-            )
-
-            self._perf_tracker = PerformanceTracker(
-                start_time=time.time(),
-                log_interval=5,
-                estimator=AdaptiveTimeEstimator(),
-                estimation_mode=TimeEstimationMode.LINEAR,
-                total_to_process=total,
-                total_assets=self._current_stats.total_assets,
-                skip_n=self._current_stats.skip_n,
-            )
+        return self._get_or_create_perf_tracker().get_progress_description(count)
 
     @typechecked
     def set_total_assets(self, total_assets: int) -> None:
         with self._lock:
-            if self._current_stats is None:
-                self.start_run()
-            self._current_stats.total_assets = total_assets
-            self._save_to_file()
-            self._try_init_perf_tracker()
-
-    @typechecked
-    def set_max_assets(self, max_assets: int) -> None:
-        with self._lock:
-            if self._current_stats is None:
-                self.start_run()
-            self._current_stats.max_assets = max_assets
-            self._save_to_file()
-            self._try_init_perf_tracker()
+            self.get_or_create_run_stats().total_assets = total_assets
+            self.save_to_file()
+            self._get_or_create_perf_tracker()
 
     def maybe_print_progress(self, count: int) -> None:
-        if self._perf_tracker is None:
-            raise RuntimeError(
-                "PerformanceTracker not initialized: totals missing. Call set_total_assets or set_max_assets before processing."
-            )
-        self._perf_tracker.update(count)
+        self._get_or_create_perf_tracker().update(count)
 
     @typechecked
     def print_progress(self, count: int) -> None:
         if self._perf_tracker is None:
             raise RuntimeError(
-                "PerformanceTracker not initialized: totals missing. Call set_total_assets or set_max_assets before processing."
+                "PerformanceTracker not initialized: totals missing. "
+                "Call set_total_assets or set_max_assets before processing."
             )
-        self._perf_tracker.print_progress(count)
+        self._get_or_create_perf_tracker().print_progress(count=count)
 
     @staticmethod
     def get_instance() -> "StatisticsManager":
-        global _instance
+        # Reserved global variable _instance is required for singleton pattern
         if _instance is None:
+            # Logging the use of reserved variable
+            print(
+                "[INFO] Reserved global variable _instance is None, "
+                "creating new instance."
+            )
             StatisticsManager()
+        if _instance is None:
+            raise RuntimeError("StatisticsManager instance not initialized.")
         return _instance
 
     @typechecked
-    def start_run(self, initial_stats: Optional[RunStatistics] = None) -> None:
+    def get_or_create_run_stats(
+        self, initial_stats: Optional[RunStatistics] = None
+    ) -> RunStatistics:
+        # TODO: refactor to get_s
         with self._lock:
             if self._current_stats is not None:
-                return
+                return self._current_stats
             # Get git version using GitPython
             try:
                 repo = git.Repo(search_parent_directories=True)
-                git_describe_runtime = repo.git.describe("--tags", "--always", "--dirty")
+                git_describe_runtime = repo.git.describe(
+                    "--tags", "--always", "--dirty"
+                )
             except Exception:
                 git_describe_runtime = None
             # Get git describe string from version.py
             try:
                 from immich_autotag.version import __git_describe__
+
                 git_describe_package = __git_describe__
             except Exception:
                 git_describe_package = None
@@ -167,105 +227,113 @@ class StatisticsManager:
                 count=0,
                 git_describe_runtime=git_describe_runtime,
                 git_describe_package=git_describe_package,
+                album_date_mismatch_count=0,
+                update_asset_date_count=0,
+                total_assets=None,
+                max_assets=None,
+                skip_n=None,
+                started_at=None,
+                finished_at=None,
+                abrupt_exit_at=None,
+                # Can be None if there is no previous data; better than inventing a zero
+                previous_sessions_time=None,
+                extra={},
+                output_tag_counters={},
+                output_album_counters={},
+                progress_description=None,
+                event_counters={},
             )
-            self._current_file = self.stats_dir / "run_statistics.yaml"
-            self._save_to_file()
-
-    def _save_to_file(self) -> None:
-        if self._current_stats and self._current_file:
-            # Always update progress_description before saving
-            self._current_stats.progress_description = self.get_progress_description()
-            with open(self._current_file, "w", encoding="utf-8") as f:
-                f.write(self._current_stats.to_yaml())
+            self._current_stats.save_to_file()
+            return self._current_stats
 
     @typechecked
     def get_stats(self) -> RunStatistics:
-        if self._current_stats is None:
-            self.start_run()
-        return self._current_stats
+
+        return self.get_or_create_run_stats()
 
     @typechecked
-    def update_checkpoint(self, last_processed_id: str, count: int) -> RunStatistics:
+    def update_checkpoint(
+        self, *, last_processed_id: AssetUUID, count: int
+    ) -> RunStatistics:
         with self._lock:
-            if self._current_stats is None:
-                self.start_run()
-            self._current_stats.last_processed_id = last_processed_id
-            self._current_stats.count = count
-            self._save_to_file()
+
+            self.get_or_create_run_stats().last_processed_id = str(last_processed_id)
+            self.get_or_create_run_stats().count = count
+            # Only save to disk every 100 assets (not every asset) for performance
+            if count % 100 == 0 or count < 10:
+                self.save_to_file()
         self.maybe_print_progress(count)
-        return self._current_stats
+        return self.get_or_create_run_stats()
 
     @typechecked
     def save(self) -> None:
         with self._lock:
-            self._save_to_file()
-
-    @typechecked
-    def load_latest(self) -> Optional[RunStatistics]:
-        files = sorted(self.stats_dir.glob("run_statistics_*.yaml"), reverse=True)
-        if files:
-            with open(files[0], "r", encoding="utf-8") as f:
-                stats = RunStatistics.from_yaml(f.read())
-                return stats
-        return None
+            self.save_to_file()
 
     @typechecked
     def delete_all(self) -> None:
-        print(
-            "[WARN] StatisticsManager.delete_all() is deprecated and should not be used. Statistics are preserved for logging."
+        from immich_autotag.logging.levels import LogLevel
+        from immich_autotag.logging.utils import log
+
+        log(
+            "StatisticsManager.delete_all() is deprecated and should not be used. "
+            "Statistics are preserved for logging.",
+            level=LogLevel.WARNING,
         )
 
     @typechecked
     def finish_run(self) -> None:
+        from datetime import datetime, timezone
+
         with self._lock:
-            if self._current_stats is None:
-                self.start_run()
-            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            self.get_or_create_run_stats().finished_at = now
+            # Add the time of this session to the accumulated total
+            started_at = self.get_or_create_run_stats().started_at
+            if started_at is not None:
+                session_time = (now - started_at).total_seconds()
+                prev = self.get_or_create_run_stats().previous_sessions_time
+                if prev is None:
+                    prev = 0.0
+                self.get_or_create_run_stats().previous_sessions_time = (
+                    prev + session_time
+                )
+            self.save_to_file()
 
-            self._current_stats.finished_at = datetime.now(timezone.utc)
-            self._save_to_file()
+    @typechecked
+    def abrupt_exit(self) -> None:
+        self.finish_run()
 
-    @property
-    def RELEVANT_TAGS(self):
-        from immich_autotag.config.manager import (
-            ConfigManager,
-        )
+    def get_relevant_tags(self) -> set[str]:
+        from immich_autotag.config.manager import ConfigManager
 
-        manager = ConfigManager.get_instance()
-        config = manager.config
-        try:
-            return {
-                config.auto_tags.category_unknown,
-                config.auto_tags.category_conflict,
-                config.auto_tags.duplicate_asset_album_conflict,
-                config.auto_tags.duplicate_asset_classification_conflict,
-            }
-        except AttributeError as e:
-            raise RuntimeError(f"Missing expected autotag category in config: {e}")
+        manager: ConfigManager = ConfigManager.get_instance()
+        config: UserConfig = manager.get_config()
+        tags: set[str] = set()
+        # Always add classification tags if not None
+        if config.classification.autotag_unknown is not None:
+            tags.add(config.classification.autotag_unknown)
+        if config.classification.autotag_conflict is not None:
+            tags.add(config.classification.autotag_conflict)
+        # Defensive: duplicate_processing may be None, but if present, we know its type
+        if config.duplicate_processing is not None:
+            if config.duplicate_processing.autotag_album_conflict is not None:
+                tags.add(config.duplicate_processing.autotag_album_conflict)
+            if config.duplicate_processing.autotag_classification_conflict is not None:
+                tags.add(config.duplicate_processing.autotag_classification_conflict)
+        return tags
 
     @typechecked
     def process_asset_tags(self, tag_names: list[str]) -> None:
-        self.tags.process_asset_tags(tag_names)
+        self._tags.process_asset_tags(tag_names)
 
     @typechecked
     def increment_tag_added(self, tag: "TagWrapper") -> None:
-        self.tags.increment_tag_added(tag)
+        self._tags.increment_tag_added(tag)
 
     @typechecked
     def increment_tag_removed(self, tag: "TagWrapper") -> None:
-        self.tags.increment_tag_removed(tag)
-
-    @typechecked
-    def set_skip_n(self, skip_n: int) -> None:
-        with self._lock:
-            if self._current_stats is None:
-                self.start_run()
-            self._current_stats.skip_n = skip_n
-            self._save_to_file()
-
-    @typechecked
-    def get_effective_skip_n(self) -> tuple[str | None, int]:
-        return self.checkpoint.get_effective_skip_n()
+        self._tags.increment_tag_removed(tag)
 
     @typechecked
     def increment_tag_action(
@@ -274,6 +342,24 @@ class StatisticsManager:
         kind: "ModificationKind",
         album: "AlbumResponseWrapper | None",
     ) -> None:
-        self.tags.increment_tag_action(tag, kind, album)
+        self._tags.increment_tag_action(tag, kind, album)
 
     # Tag/album methods delegated to TagStatsManager
+    @typechecked
+    def initialize_for_run(self, total_assets: int) -> None:
+
+        self._get_or_create_perf_tracker().set_total_assets(total_assets)
+
+        # Initialize total_assets first so that the PerformanceTracker can be
+        # initialized correctly
+        self.get_or_create_run_stats().total_assets = total_assets
+        self.set_total_assets(total_assets)
+
+    def get_max_assets(self) -> int | None:
+        """
+        Returns the updated value of max_assets, applying refresh logic if necessary.
+        """
+        # Here you can add logic to refresh from config if needed
+        # or to synchronize with the effective value
+        max_assets = self._refresh_max_assets()
+        return max_assets

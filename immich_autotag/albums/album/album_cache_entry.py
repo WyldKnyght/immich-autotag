@@ -1,0 +1,340 @@
+from __future__ import annotations
+
+import datetime
+from typing import TYPE_CHECKING
+from urllib.parse import ParseResult
+
+import attrs
+from immich_client.types import Unset
+from typeguard import typechecked
+
+from immich_autotag.albums.album.album_dto_state import AlbumDtoState
+from immich_autotag.api.logging_proxy.albums.remove_asset_from_album import (
+    logging_remove_asset_from_album,
+)
+
+if TYPE_CHECKING:
+    from immich_autotag.albums.album.album_response_wrapper import AlbumResponseWrapper
+
+from immich_autotag.api.immich_proxy.types import ImmichClient
+from immich_autotag.api.logging_proxy.albums.add_assets_to_album import (
+    logging_add_assets_to_album,
+)
+from immich_autotag.config.cache_config import DEFAULT_CACHE_MAX_AGE_SECONDS
+from immich_autotag.report.modification_entry import ModificationEntry
+from immich_autotag.types.uuid_wrappers import AlbumUUID, AssetUUID, UserUUID
+from immich_autotag.utils.decorators import conditional_typechecked
+
+if TYPE_CHECKING:
+    from immich_client.models.album_response_dto import AlbumResponseDto
+
+    from immich_autotag.albums.album.album_dto_state import AlbumLoadSource
+    from immich_autotag.albums.album.album_user_list import AlbumUserList
+    from immich_autotag.assets.asset_response_wrapper import AssetResponseWrapper
+    from immich_autotag.context.immich_context import ImmichContext
+
+
+class StaleAlbumCacheError(Exception):
+    """Raised when a cache entry is stale and cannot be used."""
+
+
+class RedundantAlbumCacheAccessError(Exception):
+    """Raised when a redundant access to the album cache is detected (debug only)."""
+
+    pass
+
+
+# Global album cache (private, type-safe)
+_album_cache_global: dict[AlbumUUID, AlbumCacheEntry] = {}
+
+
+@attrs.define(auto_attribs=True, slots=True)
+class AlbumCacheEntry:
+
+    _dto: AlbumDtoState
+    _max_age_seconds: int = DEFAULT_CACHE_MAX_AGE_SECONDS
+
+    def merge_from_dto(
+        self, dto: "AlbumResponseDto", load_source: "AlbumLoadSource"
+    ) -> None:
+        """
+        Delegates to AlbumDtoState.merge_from_dto. See AlbumDtoState for logic.
+        """
+        self._dto.merge_from_dto(dto, load_source)
+
+    @classmethod
+    def _from_cache_or_api(
+        cls,
+        album_id: AlbumUUID,
+    ) -> AlbumDtoState:
+        """
+        Attempts to load the album from cache. If it is stale or does not exist, fetches from API.
+        Returns an AlbumDtoState directly.
+        """
+        album_id_str = str(album_id)
+        from immich_autotag.utils.api_disk_cache import ApiCacheKey, ApiCacheManager
+
+        cache_mgr = ApiCacheManager.create(cache_type=ApiCacheKey.ALBUMS)
+        cache_data = cache_mgr.load(album_id_str)
+        from immich_client.models.album_response_dto import AlbumResponseDto
+
+        from immich_autotag.albums.album.album_dto_state import AlbumLoadSource
+
+        if isinstance(cache_data, dict):
+            cached_album_dto = AlbumResponseDto.from_dict(cache_data)
+            dto = AlbumDtoState.create(
+                dto=cached_album_dto, load_source=AlbumLoadSource.DETAIL
+            )
+            # Use public is_stale method
+            if not dto.is_stale():
+                return dto
+
+        # API fetch logic: call proxy_get_album_info using the default Immich client
+        from immich_autotag.api.immich_proxy.albums.get_album_info import (
+            proxy_get_album_info,
+        )
+        from immich_autotag.context.immich_context import ImmichContext
+
+        client = ImmichContext.get_default_instance().get_client_wrapper().get_client()
+        album_dto = proxy_get_album_info(
+            album_id=album_id, client=client, use_cache=False
+        )
+        if album_dto is None:
+            from immich_autotag.utils.url_helpers import get_immich_album_url
+
+            album_url = get_immich_album_url(album_id).geturl()
+            raise RuntimeError(
+                f"Could not fetch album info for album_id={album_id} (link: {album_url})"
+            )
+        # Explicit assert for mypy type narrowing
+        assert album_dto is not None
+        from immich_autotag.utils.api_disk_cache import ApiCacheKey
+
+        cache_mgr.save(album_id_str, album_dto.to_dict())
+        return AlbumDtoState.create(dto=album_dto, load_source=AlbumLoadSource.DETAIL)
+
+    def _ensure_full_loaded(self) -> "AlbumCacheEntry":
+        """
+        Ensures the DTO is of type DETAIL (full). If not, reloads using _from_cache_or_api.
+        If already full, does nothing. If not full and no reload_func is provided, raises exception.
+        PRIVATE: Only AlbumCacheEntry should decide when to reload.
+        """
+        album_id = self._dto.get_album_id()
+        # Check global cache (now keyed by AlbumUUID)
+
+        if self._dto.is_full():
+            _album_cache_global[album_id] = self
+            return self
+        # Reload the DTO using the new DTO returned by _from_cache_or_api
+        cached_entry = _album_cache_global.get(album_id)
+        if cached_entry is not None and cached_entry._dto.is_full():
+            raise RedundantAlbumCacheAccessError(
+                f"Redundant access to album cache for album_id={album_id}. "
+                f"This indicates a possible design issue in higher-level logic."
+            )
+        new_dto: AlbumDtoState = self._from_cache_or_api(album_id=album_id)
+        self._dto.update(
+            dto=new_dto.get_dto(),
+            load_source=new_dto.get_load_source(),
+        )
+        _album_cache_global[album_id] = self
+        return self
+
+    def get_start_date(self) -> datetime.datetime | Unset:
+        return self._ensure_full_loaded()._dto.get_start_date()
+
+    def get_start_date_cached(self) -> datetime.datetime | Unset:
+        """
+        Returns start date from the currently cached DTO without forcing full load.
+        """
+        return self._dto.get_start_date()
+
+    def get_end_date(self) -> datetime.datetime | Unset:
+        return self._dto.get_end_date()
+
+    def get_end_date_cached(self) -> datetime.datetime | Unset:
+        """
+        Returns end date from the currently cached DTO without forcing full load.
+        """
+        return self._dto.get_end_date()
+
+    def get_asset_count(self) -> int:
+        """
+        Returns album asset count from DTO metadata without forcing full load.
+        """
+        return self._dto.get_asset_count()
+
+    def get_owner_uuid(self) -> "UserUUID":
+        return self._dto.get_owner_uuid()
+
+    def get_album_users(self) -> "AlbumUserList":
+        return self._dto.get_album_users()
+
+    def update(
+        self, *, dto: "AlbumResponseDto", load_source: "AlbumLoadSource"
+    ) -> None:
+        self._dto.update(dto=dto, load_source=load_source)
+
+    def is_full(self) -> bool:
+        return self._dto.is_full()
+
+    def is_stale(self) -> bool:
+        return self._dto.is_stale()
+
+    def get_state(self) -> AlbumDtoState:
+        if self.is_stale():
+            album_id = self._dto.get_album_id()
+            album_url = self.get_immich_album_url().geturl()
+            raise StaleAlbumCacheError(
+                f"Album cache entry is stale (>{self._max_age_seconds}s) for album_id={album_id} (link: {album_url})"
+            )
+        return self._dto
+
+    def is_empty(self) -> bool:
+        """
+        Returns True if the album has no assets, False otherwise.
+        Uses asset_count without forcing full load (more efficient).
+        """
+        return self._dto.is_empty()
+
+    # Removed unused _get_dto method (was exposing internal state)
+
+    def get_asset_uuids(self) -> set[AssetUUID]:
+        """
+        Returns the set of asset UUIDs in the album, ensuring full DTO is loaded.
+        Does not expose DTOs directly.
+        """
+        return self._ensure_full_loaded()._dto.get_asset_uuids()
+
+    @conditional_typechecked
+    def has_asset_wrapper(
+        self, asset_wrapper: "AssetResponseWrapper", use_cache: bool = True
+    ) -> bool:
+        # Import here to avoid circular imports
+
+        return asset_wrapper.get_id() in self._ensure_full_loaded().get_asset_uuids()
+
+    @conditional_typechecked
+    def get_assets(self, context: "ImmichContext") -> list["AssetResponseWrapper"]:
+        # Ensure the album is fully loaded once, then reuse the loaded state
+        loaded_entry = self._ensure_full_loaded()
+        from immich_autotag.assets.asset_dto_state import AssetDtoType
+
+        asset_manager = context.get_asset_manager()
+        # asset_manager should not be None; if it is, this is a programming error
+        result: list["AssetResponseWrapper"] = []
+        for a in loaded_entry._dto.get_assets():
+            b = asset_manager.get_wrapper_for_asset_dto(
+                asset_dto=a,
+                dto_type=AssetDtoType.ALBUM,
+                context=context,
+            )
+            result.append(b)
+        return result
+
+    def get_album_id(self) -> AlbumUUID:
+        """
+        Returns the album UUID by delegating to the DTO state.
+        """
+        return self._dto.get_album_id()
+
+    def get_album_name(self) -> str:
+        """
+        Returns the album name by delegating to the DTO state.
+        """
+        return self._dto.get_album_name()
+
+    @staticmethod
+    def create(
+        dto: AlbumDtoState, max_age_seconds: int = DEFAULT_CACHE_MAX_AGE_SECONDS
+    ) -> "AlbumCacheEntry":
+        """
+        Static constructor for AlbumCacheEntry to avoid linter/type checker issues with private attribute names.
+        Use this instead of direct instantiation.
+        This pattern uses a single-argument constructor for attrs compatibility, then sets additional fields via a private setter.
+        See docs/dev/style.md for details.
+        """
+        entry = AlbumCacheEntry(dto)
+        entry._set_max_age_seconds(max_age_seconds)
+        return entry
+
+    def _set_max_age_seconds(self, value: int) -> None:
+        """Private setter for _max_age_seconds to support single-argument construction pattern."""
+        self._max_age_seconds = value
+
+    def get_best_cache_entry(self, other: "AlbumCacheEntry") -> "AlbumCacheEntry":
+        """
+        Decide which AlbumCacheEntry is preferred for merging/updating.
+        Prefer DETAIL/full over SEARCH/partial. If both are DETAIL, prefer the freshest (loaded_at).
+        If both are SEARCH, prefer the freshest (loaded_at).
+        Raise NotImplementedError for other cases.
+        """
+        self_state = self._dto
+        other_state = other._dto
+        if self_state.is_full() and not other_state.is_full():
+            return self
+        if other_state.is_full() and not self_state.is_full():
+            return other
+        # Both are full, prefer freshest
+        if self_state.is_full() and other_state.is_full():
+            return (
+                self
+                if self_state.get_loaded_at() >= other_state.get_loaded_at()
+                else other
+            )
+        # Both are partial, prefer freshest
+        if not self_state.is_full() and not other_state.is_full():
+            return (
+                self
+                if self_state.get_loaded_at() >= other_state.get_loaded_at()
+                else other
+            )
+        raise NotImplementedError(
+            f"get_best_cache_entry decision logic not implemented yet.\nSelf: {repr(self)}\nOther: {repr(other)}"
+        )
+
+    @typechecked
+    def get_album_uuid(self) -> AlbumUUID:
+        return self.get_album_id()
+
+    @typechecked
+    def _execute_add_asset_api(
+        self,
+        *,
+        asset_wrapper: "AssetResponseWrapper",
+        client: ImmichClient,
+        album_wrapper: "AlbumResponseWrapper",
+        raise_on_duplicate: bool = True,
+    ) -> ModificationEntry | None:
+        """Executes the API call to add an asset to the album.
+
+        Args:
+            raise_on_duplicate: If True, raises AssetAlreadyInAlbumError when asset is already in album.
+                               If False, logs warning and continues execution.
+
+        Returns:
+            ModificationEntry if successful or None if asset already in album and raise_on_duplicate=False.
+        """
+        ret = logging_add_assets_to_album(
+            asset_wrapper=asset_wrapper,
+            client=client,
+            album_wrapper=album_wrapper,
+            album_state=self.get_state(),
+            raise_on_duplicate=raise_on_duplicate,
+        )
+        return ret
+
+    @conditional_typechecked
+    def get_immich_album_url(self) -> "ParseResult":
+        from immich_autotag.utils.url_helpers import get_immich_album_url
+
+        return get_immich_album_url(self.get_album_uuid())
+
+    def remove_asset(
+        self, *, asset_wrapper: "AssetResponseWrapper", album: "AlbumResponseWrapper"
+    ) -> ModificationEntry | None:
+        if not self.has_asset_wrapper(asset_wrapper):
+            raise NotImplementedError(
+                "Attempting to remove asset that is not in album. This should have been prevented by validation logic."
+            )
+        return logging_remove_asset_from_album(asset_wrapper=asset_wrapper, album=album)

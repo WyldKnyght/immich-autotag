@@ -2,6 +2,7 @@ import logging
 
 from typeguard import typechecked
 
+from immich_autotag.config.filter_wrapper import FilterConfigWrapper
 from immich_autotag.config.manager import ConfigManager
 from immich_autotag.logging.levels import LogLevel
 from immich_autotag.logging.utils import log, setup_logging
@@ -13,26 +14,34 @@ def initialize_logging() -> None:
     Initializes the logging system depending on whether there is an asset filter or not.
     """
 
+    from immich_autotag.config.internal_config import FORCED_LOG_LEVEL
+
     manager = ConfigManager.get_instance()
-    if manager.config is None:
-        raise RuntimeError("ConfigManager.config is not initialized!")
-    filter_asset_links = manager.config.filter_out_asset_links
-    if filter_asset_links is None:
-        raise RuntimeError("filter_out_asset_links is not set in configuration!")
-    # Always force PROGRESS level to see pagination logs
-    if filter_asset_links and len(filter_asset_links) > 0:
+    filter_wrapper = FilterConfigWrapper.from_filter_config(
+        manager.get_config().filters
+    )
+
+    # --- Forced logging logic for development/CI ---
+    if FORCED_LOG_LEVEL is not None:
+        # FORCED_LOG_LEVEL es LogLevel (enum), se pasa directamente
+        setup_logging(level=FORCED_LOG_LEVEL)
+        log(
+            f"[LOG] Logging system initialized: FORCED_LOG_LEVEL={FORCED_LOG_LEVEL.name}",
+            level=FORCED_LOG_LEVEL,
+        )
+    elif filter_wrapper.is_focused():
         setup_logging(level=LogLevel.FOCUS)
         log(
             "[LOG] Logging system initialized: FOCUS level (filter mode)",
             level=LogLevel.FOCUS,
         )
     else:
-        setup_logging(level=LogLevel.PROGRESS)
-        # Silence HTTP logs from httpx and noisy dependencies
+        setup_logging(level=LogLevel.ASSET_SUMMARY)
+    # Silence HTTP logs from httpx and noisy dependencies
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-    # Test logs for each level
+    # Test logs para cada nivel
     log("[TEST] Log ERROR", level=LogLevel.ERROR)
     log("[TEST] Log IMPORTANT", level=LogLevel.IMPORTANT)
     log("[TEST] Log PROGRESS", level=LogLevel.PROGRESS)

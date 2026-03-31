@@ -1,3 +1,11 @@
+description: 'This configuration file provides values for all attributes required
+  by the Immich autotag system. Each attribute is documented inline with comments
+  explaining its purpose and selection rationale. For the most authoritative and up-to-date
+  documentation of the configuration classes and their fields, please refer to the
+  source code: https://github.com/txemi/immich-autotag/blob/main/immich_autotag/config/models.py
+
+  Note: The above link points to the ''main'' branch. If you are running a different
+  branch, please adapt the URL to match your current branch for accurate reference.'
 server:
   # Immich domain or IP (fill in by user)
   host: "<YOUR_HOST_OR_IP_HERE>"
@@ -5,63 +13,191 @@ server:
   port: 2283
   # Immich API key (fill in by user)
   api_key: "<YOUR_API_KEY_HERE>"
-  # timezone: Timezone for date extraction and display (e.g. Europe/Madrid)
-  timezone: "Europe/Madrid"
-filter_out_asset_links: []  # List of asset links or IDs to process. Empty = all assets.
-classification_rules:  # Rules to classify assets by tags or album name patterns.
-- tag_names:
-  - meme
-  - autotag_input_meme
-  album_name_patterns: null
-- tag_names:
-  - adult_meme
-  - autotag_input_adult_meme
-  album_name_patterns: null
-- tag_names:
-  - autotag_input_pending_review
-  album_name_patterns: null
-- tag_names:
-  - autotag_input_ignore
-  album_name_patterns: null
-- tag_names: null
-  album_name_patterns:
-  - ^\d{4}-(\d{2}(-\d{2})?)?
+enable_album_name_strip: true
+skip:
+  skip_n: 0
+  resume_previous: true
+  max_items: null
+filters:
+  filter_in: []
+  filter_out: []
 conversions:
-- source:
-    tag_names:
-    - meme
-    album_name_patterns: null
-  destination:
-    tag_names:
-    - autotag_input_meme
-    album_name_patterns: null
-- source:
-    tag_names:
-    - adult_meme
-    album_name_patterns: null
-  destination:
-    tag_names:
-    - autotag_input_adult_meme
-    album_name_patterns: null
-auto_tags:  # Configuration of automatic tags for unclassified assets, conflicts, duplicates, etc.
   enabled: true
-  category_unknown: autotag_output_unknown
-  category_conflict: autotag_output_conflict
-  duplicate_asset_album_conflict: autotag_output_duplicate_asset_album_conflict
-  duplicate_asset_classification_conflict: autotag_output_duplicate_asset_classification_conflict
-  duplicate_asset_classification_conflict_prefix: autotag_output_duplicate_asset_classification_conflict_
-features:  # Advanced features and flags
-  enable_album_detection: true  # Album detection by standard logic
-  enable_tag_suggestion: false  # Automatic tag suggestion (disabled)
-  advanced_feature:  # Advanced feature config
+  description: These conversions are configured for a specific test case. I am experimenting
+    with this functionality using conversions that are useful for propagating, converting,
+    copying, or transforming tags or albums into others. This allows testing different
+    types of classification, since sometimes albums work better, sometimes tags, and
+    sometimes the Immich UI is more convenient for one or the other. This feature
+    allows you to perform batch conversion operations on assets.
+  conversions:
+  - source:
+      tag_names:
+      - meme
+      album_name_patterns: null
+      asset_links: null
+      description: null
+    destination:
+      album_names: null
+      tag_names:
+      - autotag_input_meme
+    mode: !!python/object/apply:immich_autotag.config.models.ConversionMode
+    - move
+    description: null
+  - source:
+      tag_names:
+      - adult_meme
+      album_name_patterns: null
+      asset_links: null
+      description: null
+    destination:
+      album_names: null
+      tag_names:
+      - autotag_input_adult_meme
+    mode: !!python/object/apply:immich_autotag.config.models.ConversionMode
+    - move
+    description: null
+  - source:
+      tag_names:
+      - autotag_input_meme
+      album_name_patterns:
+      - autotag_input_meme
+      asset_links: null
+      description: null
+    destination:
+      album_names:
+      - autotag_input_meme
+      tag_names:
+      - autotag_input_meme
+    mode: !!python/object/apply:immich_autotag.config.models.ConversionMode
+    - copy
+    description: 'Testing both tags and albums: This conversion is for experiments,
+      to quickly populate the index with both tags and albums. In some cases, tags
+      are faster and better; in others, albums work better. This lets us compare both
+      approaches in the database.'
+  - source:
+      tag_names:
+      - autotag_input_adult_meme
+      album_name_patterns:
+      - autotag_input_adult_meme
+      asset_links: null
+      description: null
+    destination:
+      album_names:
+      - autotag_input_adult_meme
+      tag_names:
+      - autotag_input_adult_meme
+    mode: !!python/object/apply:immich_autotag.config.models.ConversionMode
+    - copy
+    description: 'Testing both tags and albums: This conversion is for experiments,
+      to quickly populate the index with both tags and albums. In some cases, tags
+      are faster and better; in others, albums work better. This lets us compare both
+      approaches in the database.'
+classification:
+  description: Classification is one of the main features of this application. By
+    default, a set of rules is distributed, combining tags, albums, and album patterns
+    to help classify assets. This makes it easy to see which assets are already classified
+    and which are pending review. Assets pending review are those that either do not
+    match any rule or match more than one, making them easy to find.
+  rules:
+  - tag_names:
+    - meme
+    - autotag_input_meme
+    album_name_patterns:
+    - ^autotag_input_meme$
+    asset_links: null
+    description: 'Meme (LEGACY): humorous images, no prefix. Compatibility. Includes
+      memes/uploads that are not events.'
+  - tag_names:
+    - adult_meme
+    - autotag_input_adult_meme
+    album_name_patterns:
+    - ^autotag_input_adult_meme$
+    asset_links: null
+    description: 'Adult meme (LEGACY): NSFW content, no prefix. Compatibility. Includes
+      adult/NSFW memes separated from the family environment.'
+  - tag_names:
+    - autotag_input_pending_review
+    album_name_patterns:
+    - ^autotag_input_pending_review$
+    asset_links: null
+    description: 'Pending review: assets that require a destination decision.'
+  - tag_names:
+    - autotag_input_ignore
+    album_name_patterns:
+    - ^autotag_input_ignore$
+    asset_links: null
+    description: 'Ignore: photos discarded from the main flow.'
+  - tag_names:
+    - autotag_input_broken
+    album_name_patterns:
+    - ^autotag_input_broken$
+    asset_links: null
+    description: 'Broken assets: photos detected as broken/corrupted during processing.
+      We prefer to separate them in a classification so they do not clutter albums
+      of interest.'
+  - tag_names: null
+    album_name_patterns:
+    - ^\d{4}-(\d{2}(-\d{2})?)?
+    asset_links: null
+    description: null
+  autotag_unknown: autotag_output_unknown
+  autotag_conflict: autotag_output_conflict
+duplicate_processing:
+  description: This functionality leverages Immich's duplicate detection to propagate
+    albums, tags, or dates between assets that are supposed to be the same. It is
+    very useful for synchronizing metadata among duplicates.
+  autotag_album_conflict: autotag_output_duplicate_asset_album_conflict
+  autotag_classification_conflict: autotag_output_duplicate_asset_classification_conflict
+  autotag_classification_conflict_prefix: autotag_output_duplicate_asset_classification_conflict_
+  autotag_album_detection_conflict: autotag_output_album_detection_conflict
+  date_correction:
     enabled: true
-    threshold: 0.8
-  enable_album_name_strip: true  # Trim spaces in album names
-  album_detection_from_folders:  # Album creation from folders
-    enabled: false  # Create albums from folders (disabled)
-    excluded_paths:
-    - whatsapp  # Exclude folders by pattern
-  date_correction:  # Date correction by file/folder name
-    enabled: false
-    extraction_timezone: Europe/Madrid  # Timezone for date extraction
-  enable_checkpoint_resume: false  # Resume from last processed asset
+    extraction_timezone: Europe/Madrid
+album_date_consistency:
+  description: If enabled, this feature allows extracting a date from the album name
+    and checking that the assets in that album are not too far apart in time from
+    the album's date. This is a useful way to tag and review assets for temporal consistency.
+  enabled: true
+  autotag_album_date_mismatch: autotag_output_album_date_mismatch
+  threshold_days: 180
+album_detection_from_folders:
+  description: This feature attempts to assign or even create an album based on the
+    folder path where an asset is stored in the library. It allows exclusions for
+    folders that should not be used for this purpose, such as WhatsApp backups.
+  enabled: false
+  excluded_paths:
+  - whatsapp
+performance:
+  description: null
+  enable_type_checking: true
+  fail_fast_on_asset_errors: false
+album_permissions:
+  description: If enabled, this feature allows you to assign album permissions to
+    users in batch by defining groups and rules. Doing this manually would be extremely
+    tedious.
+  enabled: true
+  user_groups:
+  - name: family
+    description: Family members
+    members:
+    - grandpa@example.com
+    - grandma@example.com
+    - mother@example.com
+  - name: friends
+    description: Close friends
+    members:
+    - john@example.com
+    - jane@example.com
+  selection_rules:
+  - name: Share Family albums
+    keyword: family
+    groups:
+    - family
+    access: view
+  - name: Share Friends albums
+    keyword: friends
+    groups:
+    - friends
+    access: view
+  log_unmatched: false
+create_album_from_date_if_missing: true

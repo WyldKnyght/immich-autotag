@@ -1,4 +1,3 @@
-# To load the checkpoint, import from immich_autotag.duplicates.checkpoint_loader
 """
 manager.py
 
@@ -6,15 +5,16 @@ Singleton Manager for the new experimental configuration.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import attrs
 import yaml
 from typeguard import typechecked
 
+from immich_autotag.config.user_config_override import apply_config_overrides
 
-from .models import UserConfig
 from .config_finder import find_user_config, load_python_config, load_yaml_config
+from .models import UserConfig
 
 _instance = None
 _instance_created = False
@@ -23,61 +23,130 @@ _instance_created = False
 @attrs.define(auto_attribs=True, slots=True, kw_only=True)
 class ConfigManager:
 
-    config: Optional[UserConfig] = None
+    _config: Optional[UserConfig] = None
 
-    def __attrs_post_init__(self):
-        global _instance, _instance_created
-        if _instance_created:
-            raise RuntimeError(
-                "ConfigManager instance already exists. Use get_instance()."
-            )
-        _instance_created = True
-        _instance = self
-        # --- New configuration search and loading logic ---
-        config_type, config_path = find_user_config()
-        if config_type == "python":
-            config_obj = load_python_config(config_path)
-            if isinstance(config_obj, UserConfig):
-                self.config = config_obj
-            else:
-                # Intentar validar si es un dict
-                self.config = UserConfig.model_validate(config_obj)
-        elif config_type == "yaml":
-            config_data = load_yaml_config(config_path)
-            self.config = UserConfig.model_validate(config_data)
-        else:
+    @typechecked
+    def _try_load_dynamic(self):
+        config_location = find_user_config()
+        from immich_autotag.logging.levels import LogLevel
+        from immich_autotag.logging.utils import log
+
+        log(f"Found config path: {config_location.path}", level=LogLevel.INFO)
+
+        if config_location.path is None:
+            from immich_autotag.logging.levels import LogLevel
+            from immich_autotag.logging.utils import log
             from immich_autotag.utils.user_help import print_config_help
+
+            log("No configuration found", level=LogLevel.WARNING)
             print_config_help()
             raise FileNotFoundError(
                 "No configuration found. See the configuration guide above."
             )
-        # Initialize skip_n with the counter from the last previous execution (with overlap)
+
+        config_type = config_location.get_type()
+        if config_type == config_type.__class__.PYTHON:
+            from immich_autotag.logging.levels import LogLevel
+            from immich_autotag.logging.utils import log
+
+            log(
+                f"Loading Python config from {config_location.path}",
+                level=LogLevel.INFO,
+            )
+            config_obj = load_python_config(config_location.path)
+            if isinstance(config_obj, UserConfig):
+                self._config = config_obj
+            else:
+                from immich_autotag.logging.levels import LogLevel
+                from immich_autotag.logging.utils import log
+
+                log("Validating config object as UserConfig...", level=LogLevel.DEBUG)
+                self._config = UserConfig.model_validate(config_obj)
+        elif config_type == config_type.__class__.YAML:
+            from immich_autotag.logging.levels import LogLevel
+            from immich_autotag.logging.utils import log
+
+            log(f"Loading YAML config from {config_location.path}", level=LogLevel.INFO)
+            config_data = load_yaml_config(config_location.path)
+            self._config = UserConfig.model_validate(config_data)
+        else:
+            from immich_autotag.logging.levels import LogLevel
+            from immich_autotag.logging.utils import log
+            from immich_autotag.utils.user_help import print_config_help
+
+            log("Configuration type not recognized", level=LogLevel.WARNING)
+            print_config_help()
+            raise FileNotFoundError(
+                "No configuration found. See the configuration guide above."
+            )
+
+    @typechecked
+    def _load(self):
         try:
-            from immich_autotag.statistics.statistics_checkpoint import (
-                get_previous_skip_n,
-            )
-            prev_skip_n = get_previous_skip_n()
-            if prev_skip_n is not None and hasattr(self.config, "skip_n"):
-                self.config.skip_n = prev_skip_n
-        except Exception as e:
-            print(
-                f"[WARN] Could not initialize skip_n from previous statistics: {e}"
-            )
+            self.load_config_from_real_python()
+            if self._config:
+                return
+        except Exception:
+            pass  # Ignore and try dynamic loading
+
+        self._try_load_dynamic()
+        from immich_autotag.logging.levels import LogLevel
+        from immich_autotag.logging.utils import log
+
+        log(f"Config loaded successfully: {type(self._config)}", level=LogLevel.INFO)
+
+    def _construction(self):
+        # --- New configuration search and loading logic ---
+        self._load()
+        # Dump the loaded configuration to the logs/output folder
+        apply_config_overrides(self._config)
+        self.dump_to_yaml()
         self.print_config()
+
+    def __attrs_post_init__(self):
+
+        from immich_autotag.logging.levels import LogLevel
+        from immich_autotag.logging.utils import log
+
+        global _instance, _instance_created
+        # Reserved global variable _instance is required for singleton pattern
+        if _instance_created:
+            log("ConfigManager instance already exists", level=LogLevel.ERROR)
+            raise RuntimeError(
+                "ConfigManager instance already exists. Use get_instance()."
+            )
+
+        # --- New configuration search and loading logic ---
+        # DISABLED CONSTRUCTION, LAZY LOADING IN get_config() INSTEAD
+        # self._construction()
+        # Initialize skip_n with the counter from the last previous execution (with overlap)
+        _instance_created = True
+        log(
+            "ConfigManager singleton instance created and assigned",
+            level=LogLevel.PROGRESS,
+        )
+        _instance = self
 
     @staticmethod
     @typechecked
     def get_instance() -> "ConfigManager":
+        from immich_autotag.logging.levels import LogLevel
+        from immich_autotag.logging.utils import log
+
         global _instance
+        # Reserved global variable _instance is required for singleton pattern
         if _instance is None:
-            ConfigManager()
+            log("Creating new ConfigManager instance", level=LogLevel.PROGRESS)
+            instance = ConfigManager()
+            _instance = instance
+        assert _instance is not None
         return _instance
 
     @typechecked
     def load_config(self, config_path: Path):
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        self.config = UserConfig.model_validate(data)
+        self._config = UserConfig.model_validate(data)
         # Save a record of the loaded config to logs/output
         self.dump_to_yaml()
 
@@ -87,29 +156,34 @@ class ConfigManager:
         (Legacy) Loads the configuration by directly importing user_config from user_config.py (development mode only).
         """
         from .user_config import user_config
-        self.config = user_config
-        self.dump_to_yaml()
+
+        self._config = user_config
 
     @typechecked
-    def dump_to_yaml(self, path: "str | Path | None" = None):
+    def dump_to_yaml(self):
         """Dumps the current configuration to a YAML file in the default logs/output folder."""
-        if self.config is None:
+        if self._config is None:
             raise RuntimeError("No configuration loaded to dump to YAML.")
-        from pathlib import Path as _Path
-
         import yaml
 
-        from immich_autotag.utils.run_output_dir import get_run_output_dir
+        from immich_autotag.run_output.manager import RunOutputManager
 
-        if path is None:
-            out_dir = get_run_output_dir()
-            path = out_dir / "user_config_dump.yaml"
-        if not isinstance(path, (str, _Path)):
-            raise TypeError(f"path must be str, Path or None, got {type(path)}")
+        run_execution = RunOutputManager.current().get_run_output_dir()
+        path = run_execution.get_user_config_dump_path()
+        import enum
+
+        @typechecked
+        def enum_representer(dumper: Any, data: "enum.Enum") -> Any:
+            try:
+                rep = str(data.value)
+            except Exception:
+                rep = str(data)
+            return dumper.represent_data(rep)
+
+        yaml.add_representer(enum.Enum, enum_representer)
+        # Standard dump only
         with open(str(path), "w", encoding="utf-8") as f:
-            yaml.safe_dump(
-                self.config.model_dump(), f, allow_unicode=True, sort_keys=False
-            )
+            yaml.dump(self._config.model_dump(), f, allow_unicode=True, sort_keys=False)
 
     @typechecked
     def print_config(self):
@@ -117,30 +191,44 @@ class ConfigManager:
         from immich_autotag.logging.levels import LogLevel
         from immich_autotag.logging.utils import log
 
-        if self.config is None:
+        if self._config is None:
             log("[WARN] No configuration loaded.", level=LogLevel.FOCUS)
             raise RuntimeError("No configuration loaded to print.")
         import pprint
 
-        config_str = pprint.pformat(self.config.model_dump())
+        config_str = pprint.pformat(self._config.model_dump())
         log(f"Loaded config:\n{config_str}", level=LogLevel.FOCUS)
 
+    @staticmethod
+    def is_checkpoint_resume_enabled() -> bool:
+        config = ConfigManager.get_instance().get_config()
+        if config is None:
+            return False
+        # Prefer explicit access to known config fields. The skip/resume logic
+        # is represented in `SkipConfig.resume_previous` on `UserConfig.skip`.
+        # Access fields explicitly to avoid dynamic attribute lookups (getattr).
+        try:
+            return bool(config.skip.resume_previous)
+        except Exception:
+            return False
 
-# --- Automatic loading at startup (usage example) ---
+    def get_config(self) -> UserConfig:
+        if self._config is None:
+            self._construction()
+        if self._config is None:
+            raise RuntimeError("Failed to load configuration.")
+        return self._config
 
+    @staticmethod
+    def get_effective_max_items() -> Optional[int]:
+        """
+        Returns the effective max items to process, giving priority to FORCE_MAX_ITEMS_TO_PROCESS
+        in internal_config.py. If not set, falls back to user config.
+        """
+        # TODO: This method is currently used in a few places to enforce a global limit for CI/dev testing. It may be better to centralize this logic in the processing pipeline or a utility function, rather than having it as a static method on ConfigManager.
+        from immich_autotag.config.internal_config import FORCE_MAX_ITEMS_TO_PROCESS
 
-@typechecked
-def load_config_at_startup():
-    config_path = Path(__file__).parent / "user_config.yaml"
-    # If the file does not exist, raise a clear error
-    if not config_path.exists():
-        raise FileNotFoundError(
-            f"Experimental configuration template not found at: {config_path}"
-        )
-    # Only create the singleton if it does not exist
-    manager = ConfigManager.get_instance()
-    manager.load_config_from_real_python()
-    # Print the loaded configuration to see the result
-    import pprint
-
-    pprint.pprint(manager.config.model_dump() if manager.config else None)
+        if FORCE_MAX_ITEMS_TO_PROCESS is not None:
+            return FORCE_MAX_ITEMS_TO_PROCESS
+        config = ConfigManager.get_instance().get_config()
+        return config.skip.max_items

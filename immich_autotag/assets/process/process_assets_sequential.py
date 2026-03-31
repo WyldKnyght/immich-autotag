@@ -1,61 +1,136 @@
 from __future__ import annotations
 
-import time
-from threading import Lock
-
 from typeguard import typechecked
 
-from immich_autotag.assets.process.perf_log import perf_log
+from immich_autotag.assets.process.asset_process_report import AssetProcessReport
 from immich_autotag.assets.process.process_single_asset import process_single_asset
+from immich_autotag.config.manager import ConfigManager
 from immich_autotag.context.immich_context import ImmichContext
+from immich_autotag.errors.recoverable_error import categorize_error
 from immich_autotag.logging.levels import LogLevel
-from immich_autotag.logging.utils import log, log_debug
+from immich_autotag.logging.utils import log
 from immich_autotag.report.modification_report import ModificationReport
 from immich_autotag.statistics.statistics_manager import StatisticsManager
-from immich_autotag.utils.perf.estimator import AdaptiveTimeEstimator
 
 
 @typechecked
 def process_assets_sequential(
     context: ImmichContext,
-    max_assets: int | None,
-    skip_n: int,
-    last_processed_id: str | None,
-    tag_mod_report: ModificationReport,
-    lock: Lock,
-    estimator: AdaptiveTimeEstimator,
-    total_to_process: int | None,
-    LOG_INTERVAL: int,
-    start_time: float,
-    total_assets: int | None,
 ) -> int:
     log(
         "Entering asset processing loop...",
         level=LogLevel.PROGRESS,
     )
     log("[DEBUG] Before iterating assets (start of for loop)", level=LogLevel.DEBUG)
+    cm = ConfigManager.get_instance()
+    assert isinstance(cm, ConfigManager)
+
+    # Determine skip_n and clearly show its origin
+    config_skip_n = 0
+    config_resume_previous = True
+
+    config = cm.get_config()
+    # config.skip is never None
+    config_skip_n = config.skip.skip_n or 0
+    config_resume_previous = config.skip.resume_previous
+
+    # Use the centralized logic of CheckpointManager to decide and log the origin
+    skip_n = (
+        StatisticsManager.get_instance()
+        .get_checkpoint_manager()
+        .get_effective_skip_n(
+            config_skip_n=config_skip_n, config_resume_previous=config_resume_previous
+        )
+    )
+    max_assets = StatisticsManager.get_instance().get_max_assets()
     count = 0
-    last_log_time = time.time()
+    albums_collection = context.get_albums_collection()
+    # Prepare and cache the asset-to-albums map and cleanup once before the loop
+    albums_collection.cleanup_empty_temporary_albums()
     try:
-        for asset_wrapper in context.asset_manager.iter_assets(
+
+        for asset_wrapper in context.get_asset_manager().iter_assets(
             context, max_assets=max_assets, skip_n=skip_n
         ):
-            log_debug(
-                f"[BUG] Processing asset: {getattr(asset_wrapper, 'id', asset_wrapper)}"
-            )
-            t0 = time.time()
-            process_single_asset(asset_wrapper, tag_mod_report, lock)
+            asset_id = asset_wrapper.get_id()
+            asset_url = asset_wrapper.get_immich_photo_url().geturl()
             log(
-                f"Iteration completed for asset: {getattr(asset_wrapper, 'id', asset_wrapper)}",
-                level=LogLevel.DEBUG,
+                f"[PROGRESS] Processing asset {count+1}: {asset_id} | Link: {asset_url}",
+                level=LogLevel.ASSET_SUMMARY,
+            )
+
+            try:
+                result: AssetProcessReport = process_single_asset(asset_wrapper)
+                log(
+                    f"[DEBUG] process_single_asset result: {result}",
+                    level=LogLevel.DEBUG,
+                )
+            except Exception as e:
+                # Categorize the error as recoverable or fatal
+                categorized = categorize_error(e)
+                is_recoverable = categorized.is_recoverable
+                category = categorized.category_name
+
+                # Check if we should continue on errors based on config
+                config = ConfigManager.get_instance().get_config()
+                fail_fast = config.performance.fail_fast_on_asset_errors
+                # Skip asset if error is recoverable OR if fail_fast is disabled
+                should_skip = is_recoverable or not fail_fast
+
+                if should_skip:
+                    import traceback
+
+                    tb = traceback.format_exc()
+                    asset_id = asset_wrapper.get_id()
+                    error_prefix = "[WARN]" if is_recoverable else "[ERROR]"
+                    log(
+                        f"{error_prefix} {category} - Skipping asset {asset_id}: {e}\nTraceback:\n{tb}",
+                        level=LogLevel.IMPORTANT,
+                    )
+                    from immich_autotag.report.modification_kind import ModificationKind
+
+                    tag_mod_report = ModificationReport.get_instance()
+                    if tag_mod_report:
+                        error_kind = (
+                            ModificationKind.ERROR_ASSET_SKIPPED_RECOVERABLE
+                            if is_recoverable
+                            else ModificationKind.ERROR_ASSET_SKIPPED_FATAL
+                        )
+                        tag_mod_report.add_error_modification(
+                            kind=error_kind,
+                            asset_wrapper=asset_wrapper,
+                            error_message=str(e),
+                            error_category=category,
+                            extra={"traceback": tb},
+                        )
+                    count += 1
+                    StatisticsManager.get_instance().update_checkpoint(
+                        last_processed_id=asset_wrapper.get_id(),
+                        count=skip_n + count,
+                    )
+                    continue
+                else:
+                    # Fatal error - re-raise immediately
+                    import traceback
+
+                    tb = traceback.format_exc()
+                    asset_id = asset_wrapper.get_id()
+                    log(
+                        f"[ERROR] {category} - Aborting at asset {asset_id}: {e}\nTraceback:\n{tb}",
+                        level=LogLevel.IMPORTANT,
+                    )
+                    raise
+
+            asset_id = asset_wrapper.get_id()
+            log(
+                f"Iteration {count+1} completed for asset: {asset_url}",
+                level=LogLevel.ASSET_SUMMARY,
             )
             count += 1
             StatisticsManager.get_instance().update_checkpoint(
-                asset_wrapper.id,
-                skip_n + count,
+                last_processed_id=asset_wrapper.get_id(),
+                count=skip_n + count,
             )
-            t1 = time.time()
-            estimator.update(t1 - t0)
     except Exception as e:
         import traceback
 
@@ -66,9 +141,10 @@ def process_assets_sequential(
         )
         raise
     finally:
-        log("Asset processing loop finished.", level=LogLevel.PROGRESS)
+        # Clear the cached map after batch processing
+        albums_collection.clear_batch_asset_to_albums_map()
         log(
-            "The asset for-loop has ended (no more assets in the iterator).",
+            f"Asset processing loop finished. Total assets processed: {count}. The asset for-loop has ended (no more assets in the iterator).",
             level=LogLevel.PROGRESS,
         )
     return count

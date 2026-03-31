@@ -1,15 +1,28 @@
 from __future__ import annotations
 
-from immich_client import Client
-from immich_client.api.assets import get_asset_info
 from typeguard import typechecked
+
+from immich_autotag.context.immich_context import ImmichContext
+from immich_autotag.types.client_types import ImmichClient
+from immich_autotag.types.uuid_wrappers import AssetUUID
 
 
 @typechecked
-def print_asset_details_with_tags(asset_id: str, client: Client) -> None:
-    """Obtains and displays complete details of an asset, including tags."""
-    asset = get_asset_info.sync(id=asset_id, client=client)
-    tag_names = [tag.name for tag in asset.tags] if asset.tags else []
+def print_asset_details_with_tags(asset_id: AssetUUID, client: ImmichClient) -> None:
+    """Obtains and displays complete details of an asset, including tags.
+
+    Accepts either a `UUID` or a string representation and converts to `UUID`
+    before calling the immich client to satisfy typed client signatures.
+    """
+
+    # Get the global context (singleton)
+    context = ImmichContext.get_default_instance()
+
+    asset_wrapper = context.get_asset_manager().get_asset(asset_id, context)
+    if asset_wrapper is None:
+        raise RuntimeError(f"Asset with ID {asset_id} not found.")
+    tag_list = asset_wrapper.get_tags()
+    tag_names = [tag.get_name() for tag in tag_list] if tag_list else []
     print(
-        f"Asset: {asset.original_file_name} | Tags: {', '.join(tag_names) if tag_names else '-'}"
+        f"Asset: {asset_wrapper.get_original_file_name()} | Tags: {', '.join(tag_names) if tag_names else '-'}"
     )

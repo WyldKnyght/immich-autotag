@@ -1,0 +1,13 @@
+pylint
+ssort @ git+https://github.com/bwhmather/ssort.git@0.16.0
+
+ruff
+black
+isort
+flake8
+mypy
+import-linter
+build
+twine
+
+langdetect

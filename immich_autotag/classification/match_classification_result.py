@@ -1,14 +1,54 @@
+from dataclasses import dataclass
 from typing import List
 
 import attrs
 
+from immich_autotag.classification.match_result_list import MatchResultList
+
+
+@dataclass(frozen=True)
+class _AggregateResult:
+    tags: list[str]
+    albums: list[str]
+
 
 @attrs.define(auto_attribs=True, slots=True, frozen=True)
 class MatchClassificationResult:
-    tags_matched: List[str] = attrs.field(validator=attrs.validators.instance_of(list))
-    albums_matched: List[str] = attrs.field(
+    _tags_matched: List[str] = attrs.field(validator=attrs.validators.instance_of(list))
+    _albums_matched: List[str] = attrs.field(
         validator=attrs.validators.instance_of(list)
     )
 
+    @classmethod
+    def from_match_result_list(
+        cls, match_result_list: MatchResultList
+    ) -> "MatchClassificationResult":
+        """
+        Aggregate tags_matched and albums_matched from a MatchResultList object.
+        """
+        from typeguard import typechecked
+
+        @typechecked
+        def _aggregate(
+            match_result_list: MatchResultList,
+        ) -> _AggregateResult:
+            tags = []
+            albums = []
+            for m in match_result_list.rules():
+                tags.extend(m.tags_matched())
+                albums.extend(m.albums_matched())
+            return _AggregateResult(tags=tags, albums=albums)
+
+        agg = _aggregate(match_result_list)
+        return cls(tags_matched=agg.tags, albums_matched=agg.albums)
+
+    def tags_matched(self) -> List[str]:
+        """Returns the list of tags matched by classification rules."""
+        return self._tags_matched
+
+    def albums_matched(self) -> List[str]:
+        """Returns the list of albums matched by classification rules."""
+        return self._albums_matched
+
     def any(self) -> bool:
-        return bool(self.tags_matched or self.albums_matched)
+        return bool(self._tags_matched or self._albums_matched)

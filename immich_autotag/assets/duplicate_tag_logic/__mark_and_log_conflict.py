@@ -20,12 +20,32 @@ def mark_and_log_conflict(asset_wrapper: "AssetResponseWrapper") -> None:
     duplicate_wrappers = get_duplicate_wrappers(asset_wrapper)
     details = [w.format_info() for w in duplicate_wrappers]
     msg = (
-        f"[DUPLICATE TAGS][CONFLICT] Classification tags differ for duplicates. Detailed information of all involved:\n"
+        "[DUPLICATE TAGS][CONFLICT] Classification tags differ for duplicates. Detailed information of all involved:\n"
         + "\n".join(details)
     )
     log(msg, level=LogLevel.FOCUS)
-    config = ConfigManager.get_instance().config
-    group_tag = f"{config.auto_tags.duplicate_asset_classification_conflict_prefix}{asset_wrapper.duplicate_id_as_uuid}"
+    from immich_autotag.config.models import DuplicateProcessingConfig, UserConfig
+
+    config: UserConfig = ConfigManager.get_instance().get_config()
+    if config.duplicate_processing is None:
+        log(
+            "[DUPLICATE TAGS][CONFLICT] duplicate_processing missing, cannot tag conflict.",
+            level=LogLevel.ERROR,
+        )
+        return
+    duplicate_processing: DuplicateProcessingConfig = config.duplicate_processing
+
+    from immich_autotag.types.uuid_wrappers import DuplicateUUID
+
+    duplicate_id_or_none = asset_wrapper.get_duplicate_id_as_uuid()
+    assert duplicate_id_or_none is not None
+    duplicate_id: DuplicateUUID = duplicate_id_or_none
+    group_tag = (
+        f"{duplicate_processing.autotag_classification_conflict_prefix}{duplicate_id}"
+    )
     for w in duplicate_wrappers:
-        w.add_tag_by_name(config.auto_tags.duplicate_asset_classification_conflict)
-        w.add_tag_by_name(group_tag)
+        if duplicate_processing.autotag_classification_conflict is not None:
+            w.add_tag_by_name(
+                tag_name=duplicate_processing.autotag_classification_conflict
+            )
+        w.add_tag_by_name(tag_name=group_tag)

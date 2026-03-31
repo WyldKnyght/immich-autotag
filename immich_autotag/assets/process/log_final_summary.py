@@ -10,17 +10,49 @@ from immich_autotag.report.modification_report import ModificationReport
 
 
 @typechecked
-def log_final_summary(
-    count: int, tag_mod_report: ModificationReport, start_time: float
-) -> None:
+def log_final_summary() -> None:
+    from immich_autotag.statistics.statistics_manager import StatisticsManager
+
+    stats = StatisticsManager.get_instance().get_stats()
+    count = stats.count
+    start_time = stats.get_start_time()
     total_time = time.time() - start_time
-    log(f"Total assets processed: {count}", level=LogLevel.PROGRESS)
-    log(
-        f"[PERF] Total time: {total_time:.2f} s. Average per asset: {total_time/count if count else 0:.3f} s",
-        level=LogLevel.PROGRESS,
-    )
-    if len(tag_mod_report.modifications) > 0:
-        tag_mod_report.print_summary()
+
+    # Get modification statistics
+    tag_mod_report = ModificationReport.get_instance()
+
+    # Show modification type counts for better communication
+    entry_type_counts = tag_mod_report.get_entry_type_counts()
+    log(f"Modification type counts: {entry_type_counts}", level=LogLevel.DEBUG)
+    total_modifications = len(tag_mod_report.get_entries())
+
+    # Build the complete report as a single string
+    report_lines = [
+        "═══════════════════════════════════════════════════════",
+        "EXECUTION SUMMARY",
+        "───────────────────────────────────────────────────────",
+        f"Total assets processed: {count}",
+        f"Total time: {total_time:.2f} s | Average per asset: {total_time/count if count else 0:.3f} s",
+        "───────────────────────────────────────────────────────",
+        "MODIFICATIONS DETECTED",
+        "───────────────────────────────────────────────────────",
+    ]
+
+    # Add entry_type_counts to report in a clear, human-readable way
+    if entry_type_counts:
+        report_lines.append("Modification type counts:")
+        for mod_type, count in entry_type_counts.items():
+            report_lines.append(f"  - {mod_type}: {count}")
+    else:
+        report_lines.append("Modification type counts: none")
+
+    report_lines.append("═══════════════════════════════════════════════════════")
+
+    # Print entire report in one call
+    log("\n".join(report_lines), level=LogLevel.PROGRESS)
+
+    # Flush report to file if needed
+    if total_modifications > 0:
         tag_mod_report.flush()
     MIN_ASSETS = 0  # Change this value if you know the real minimum number of assets
     if count < MIN_ASSETS:
