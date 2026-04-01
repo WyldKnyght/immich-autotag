@@ -35,3 +35,51 @@ I'm excited to announce a major new release of **Immich AutoTag**, the open-sour
 *(Previous announcement for reference: [https://github.com/immich-app/immich/discussions/24764](https://github.com/immich-app/immich/discussions/24764))* 
 
 Thank you for your support and feedback!
+
+---
+
+## v0.80.0 — 2026-03-31
+
+# Immich AutoTag v0.80.0 – User Groups, Smarter Rule Engine, Continuous Batch Mode & More!
+
+Hi Immich community!
+
+I'm excited to announce **v0.80.0** of **Immich AutoTag** — a major milestone that consolidates months of work across user permissions, rule engine improvements, and production-grade stability. This release marks the beginning of our stabilization roadmap toward v1.0.0.
+
+## What's new in v0.80.0?
+
+- 👥 **User Permissions & Groups:** Automatic assignment of permissions to users based on configured rules; full Phase 1+2 synchronization system now consolidated, stable, and tested with 500+ albums.
+- 🔁 **Continuous Batch Mode:** The tool now runs continuously and automatically processes new assets as they arrive — fully stable for long-running production deployments.
+- 🧩 **Enhanced Rule Engine:** Supports both regex patterns and simplified common-use patterns for flexible, powerful classification.
+- 🗂️ **Duplicate Album-Name Recovery:** New flow with cleanup and rename strategies to resolve same-name album conflicts safely.
+- ⚙️ **Configurable Execution Phases:** Enable/disable key phases independently (album assignment, classification validation, duplicate-tag analysis, album-date consistency, tag conversions).
+- 🏥 **Automatic Temporary Album Cleanup:** Detects and removes unhealthy temporary albums.
+- ✅ **Checkpoint Resume (stable):** Resume processing from the last processed asset after any interruption — now stable and enabled by default.
+- 🗃️ **Auto Album Creation from Folders (stable):** Now stable and enabled by default.
+- 🔧 **API Architecture Refactor:** Modular entrypoints (albums/assets/tags/users/server) for improved maintainability and architectural boundaries.
+
+## ⚠️ Known Issue — Docker
+
+In some environments, the **Docker image** (`0.80.3`) may fail to access the Immich API (suspected DNS/network issue). If you hit this, use the **pipx** method instead:
+
+```bash
+pipx run immich-autotag
+```
+
+Tracked at [GitHub Issue #43](https://github.com/txemi/immich-autotag/issues/43). Fix in progress.
+
+## Get Started
+
+- 📖 [Quick Start (README)](https://github.com/txemi/immich-autotag#quick-start)
+- 📋 [Full Changelog](https://github.com/txemi/immich-autotag/blob/main/CHANGELOG.md)
+- 🐣 [Explain Like I'm 5 (ELI5)](https://github.com/txemi/immich-autotag/blob/main/docs/explain-like-im-5.md)
+
+## Feedback & Support
+
+Questions, issues, or feature requests? → [GitHub Issues](https://github.com/txemi/immich-autotag/issues)
+
+*(Previous major announcement: [https://github.com/immich-app/immich/discussions/25164](https://github.com/immich-app/immich/discussions/25164))*
+
+Thank you for your continued support!
+
+<!-- STATUS: draft — not yet posted -->
