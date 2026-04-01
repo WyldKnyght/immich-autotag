@@ -4,9 +4,9 @@ Organizing digital memories at a massive scale is an engineering challenge, not 
 
 Today, I’m excited to announce **v0.80.0** — a major milestone on the road to v1.0. This update isn't just a list of features; it’s a direct response to real-world scalability and data governance hurdles:
 
+✅ **Smart Rule Engine:** A powerful logic layer to **create and assign tags and albums** based on custom criteria, reducing manual organization to nearly zero.
 ✅ **Automated Permission Management:** Dynamic rules to assign user access in complex family or group environments.
-✅ **Smart Rule Engine:** Automated asset classification based on patterns, reducing manual overhead to nearly zero.
-✅ **Data Integrity:** Proactive date correction and conflict detection to ensure thousands of files maintain precise metadata.
+✅ **Data Integrity:** Proactive **date correction** and detection of **metadata inconsistencies**, ensuring thousands of files maintain precise and reliable information.
 
 Testing this software against my own infrastructure of **360k+ assets** allowed me to optimize performance and reliability where traditional systems often struggle. 
 
@@ -15,4 +15,4 @@ Whether you’re into Open Source, data management at scale, or just want to reg
 👇 **Check out the full technical breakdown and the "Deep Dive" in the repository:**
 [LINK_TO_YOUR_GITHUB_HERE]
 
-#OpenSource #Immich #SelfHosted #Engineering #CloudArchitecture #Automation #SoftwareDevelopment #DataGovernance #Scalability
+#OpenSource #Immich #SelfHosted #Engineering #CloudArchitecture #Automation #SoftwareDevelopment #DataGovernance #Scalability #DataIntegrity
