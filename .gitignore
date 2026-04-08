@@ -28,3 +28,8 @@ immich-autotag.local.code-workspace
 .pytest_cache/
 *.pyc
 .coverage
+
+# User config files (contain secrets — never commit)
+user_config.py
+user_config.yaml
+user_config.yml
